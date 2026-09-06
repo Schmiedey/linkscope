@@ -2,6 +2,8 @@ import { useParams } from "react-router-dom";
 import { GraphViewer } from "@/src/graph/GraphViewer";
 import { useAsync } from "@/src/lib/useAsync";
 import { getScan, getScanGraph } from "@/src/storage/scans";
+import { thirdPartyCountOf, trackerCountOf } from "@/src/analysis/enrich";
+import { scoreFromScan } from "@/src/analysis/score";
 import { formatCount } from "@/src/lib/utils";
 
 export function GraphPage() {
@@ -27,11 +29,16 @@ export function GraphPage() {
     );
   }
 
+  const snapshot = graph.data;
+  const mark = scoreFromScan(scan.data);
+  const watchNote = scan.data.captureMode === "watch" ? " · 15s watch" : "";
+
   return (
     <GraphViewer
-      snapshot={graph.data}
+      snapshot={snapshot}
+      scan={scan.data}
       title={scan.data.domain}
-      subtitle={`${formatCount(scan.data.nodeCount)} domains · ${formatCount(scan.data.edgeCount)} connections`}
+      subtitle={`Grade ${mark.grade} ${String(mark.score)} · ${formatCount(thirdPartyCountOf(snapshot))} third parties · ${formatCount(trackerCountOf(snapshot))} trackers${watchNote}`}
       backTo="/"
     />
   );

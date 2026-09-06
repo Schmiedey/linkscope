@@ -8,16 +8,16 @@ export function Badge({
 }: HTMLAttributes<HTMLSpanElement> & { tone?: "mute" | "cyan" | "amber" | "rose" | "lime" }) {
   const tones = {
     mute: "border-line text-mute",
-    cyan: "border-cyan/40 text-cyan",
-    amber: "border-amber/40 text-amber",
-    rose: "border-rose/40 text-rose",
-    lime: "border-lime/40 text-lime",
+    cyan: "border-line text-ink",
+    amber: "border-amber/30 text-amber",
+    rose: "border-rose/30 text-rose",
+    lime: "border-lime/30 text-lime",
   } as const;
 
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-sm border px-1.5 py-0.5 font-mono text-[10px] tracking-[0.14em] uppercase",
+        "inline-flex items-center rounded-md border px-1.5 py-0.5 text-[11px]",
         tones[tone],
         className,
       )}

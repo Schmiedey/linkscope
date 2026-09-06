@@ -54,7 +54,7 @@ export function collectPageFindings(): RawScanPayload {
     if (findings.length >= MAX) return;
     const url = resolve(rawUrl);
     if (!url) return;
-    const key = `${type}|${url}|${snippet}`;
+    const key = `${type}|${url}`;
     if (seen.has(key)) return;
     seen.add(key);
     const finding: RawFinding = { type: type as ConnectionType, url, snippet };
@@ -135,13 +135,6 @@ export function collectPageFindings(): RawScanPayload {
     if (action) add("network", action, snippetOf(el), "form action");
   }
 
-  for (const el of Array.from(document.querySelectorAll("[href], [src]"))) {
-    const href = attr(el, "href");
-    const src = attr(el, "src");
-    if (href) add("other", href, snippetOf(el));
-    if (src) add("other", src, snippetOf(el));
-  }
-
   try {
     const entries = performance.getEntriesByType("resource") as PerformanceResourceTiming[];
     for (const entry of entries) {
@@ -169,4 +162,65 @@ export function collectPageFindings(): RawScanPayload {
     hostname: location.hostname,
     findings: findings.slice(0, MAX_FINDINGS),
   };
+}
+
+type WatchBucket = {
+  extras: RawFinding[];
+  seen: Set<string>;
+};
+
+let watchBucket: WatchBucket | null = null;
+let watchObserver: PerformanceObserver | null = null;
+
+function typeFromInitiator(initiator: string): ConnectionType {
+  if (initiator === "script") return "script";
+  if (initiator === "img" || initiator === "image") return "image";
+  if (initiator === "css" || initiator === "link") return "stylesheet";
+  if (initiator === "iframe") return "iframe";
+  if (initiator === "video" || initiator === "audio") return "media";
+  return "network";
+}
+
+export function installLinkScopeCollector(): RawScanPayload {
+  if (!watchBucket) {
+    watchBucket = { extras: [], seen: new Set() };
+  }
+
+  if (!watchObserver) {
+    try {
+      watchObserver = new PerformanceObserver((list) => {
+        const bucket = watchBucket;
+        if (!bucket) return;
+        for (const entry of list.getEntries() as PerformanceResourceTiming[]) {
+          const url = entry.name;
+          if (!url || bucket.seen.has(url)) continue;
+          bucket.seen.add(url);
+          const type = typeFromInitiator(entry.initiatorType || "other");
+          bucket.extras.push({
+            type,
+            url,
+            snippet: `performance:${entry.initiatorType || "other"} ${url.slice(0, 256)}`,
+          });
+        }
+      });
+      watchObserver.observe({ type: "resource", buffered: true });
+    } catch {
+      watchObserver = null;
+    }
+  }
+
+  const snap = collectPageFindings();
+  const seen = new Set(snap.findings.map((item) => `${item.type}|${item.url}`));
+  if (watchBucket) {
+    for (const extra of watchBucket.extras) {
+      const key = `${extra.type}|${extra.url}`;
+      if (seen.has(key) || snap.findings.length >= MAX_FINDINGS) continue;
+      seen.add(key);
+      snap.findings.push(extra);
+    }
+  }
+
+  const scope = globalThis as typeof globalThis & { __LINKSCOPE_SCAN__?: RawScanPayload };
+  scope.__LINKSCOPE_SCAN__ = snap;
+  return snap;
 }

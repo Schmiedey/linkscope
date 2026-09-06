@@ -1,4 +1,6 @@
 import { Link } from "react-router-dom";
+import { scoreFromScan } from "@/src/analysis/score";
+import { PrivacyScoreMark } from "@/src/components/PrivacyScoreMark";
 import { formatCount, formatRelativeTime } from "@/src/lib/utils";
 import { useAsync } from "@/src/lib/useAsync";
 import { getLatestScanForSite, listSites } from "@/src/storage/scans";
@@ -33,12 +35,11 @@ export function SitesPage() {
   }, [sites.data]);
 
   return (
-    <div className="px-8 py-8">
+    <div className="px-10 py-10">
       <header className="mb-8">
-        <p className="text-[10px] tracking-[0.32em] text-cyan uppercase">Sites</p>
-        <h1 className="font-display mt-1 text-4xl">Website profiles</h1>
+        <h1 className="font-display text-4xl">Sites</h1>
       </header>
-      <div className="grid gap-3">
+      <div className="grid gap-2">
         {sites.data?.map((site) => (
           <SiteCard key={site.domain} site={site} latest={site.id ? latest[site.id] : undefined} />
         ))}
@@ -51,28 +52,36 @@ export function SitesPage() {
 function SiteCard({ site, latest }: { site: SiteRow; latest: ScanRow | undefined }) {
   const now = Date.now();
   return (
-    <div className="flex items-center justify-between border border-line bg-panel/50 px-4 py-4">
+    <div className="flex items-center justify-between border-b border-line py-4">
       <div>
-        <div className="font-display text-2xl">{site.domain}</div>
-        <div className="mt-1 text-[11px] text-mute">
+        <div className="text-[16px] font-medium">
+          {site.id !== undefined ? (
+            <Link to={`/sites/${String(site.id)}`} className="hover:underline">
+              {site.domain}
+            </Link>
+          ) : (
+            site.domain
+          )}
+        </div>
+        <div className="mt-1 text-[12px] text-mute">
           Scanned {formatCount(site.scanCount)} times · First {formatRelativeTime(site.firstSeen, now)} · Last{" "}
           {formatRelativeTime(site.lastSeen, now)}
+          {latest
+            ? ` · ${formatCount(latest.trackerCount)} trackers`
+            : ""}
         </div>
       </div>
-      <div className="flex gap-2">
+      <div className="flex items-center gap-4">
+        {latest ? (
+          <PrivacyScoreMark compact score={scoreFromScan(latest).score} grade={scoreFromScan(latest).grade} />
+        ) : null}
         {latest?.id !== undefined ? (
-          <Link
-            to={`/graph/${String(latest.id)}`}
-            className="border border-cyan/40 px-3 py-2 text-[10px] tracking-[0.16em] text-cyan uppercase"
-          >
+          <Link to={`/graph/${String(latest.id)}`} className="text-[13px] text-ink hover:underline">
             Latest graph
           </Link>
         ) : null}
         {site.id !== undefined ? (
-          <Link
-            to="/scans"
-            className="border border-line px-3 py-2 text-[10px] tracking-[0.16em] text-mute uppercase hover:text-ink"
-          >
+          <Link to={`/sites/${String(site.id)}`} className="text-[13px] text-mute hover:text-ink">
             History
           </Link>
         ) : null}

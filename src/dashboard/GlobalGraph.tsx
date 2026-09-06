@@ -37,23 +37,29 @@ export function GlobalGraphPage() {
     : `${String(snapshot.data.nodes.length)} domains across all scans`;
 
   return (
-    <div className="relative">
-      <div className="absolute top-4 left-48 z-30 flex items-center gap-2">
-        <label className="text-[10px] tracking-[0.16em] text-mute uppercase">Seen on</label>
-        {[1, 2, 5].map((n) => (
-          <button
-            key={n}
-            type="button"
-            onClick={() => setMinSeenOn(n)}
-            className={`border px-2 py-1 text-[10px] tracking-[0.14em] uppercase ${
-              minSeenOn === n ? "border-cyan text-cyan" : "border-line text-mute"
-            }`}
-          >
-            {n}+ sites
-          </button>
-        ))}
-      </div>
-      <GraphViewer snapshot={snapshot.data} title="Global graph" subtitle={subtitle} backTo="/" />
-    </div>
+    <GraphViewer
+      snapshot={snapshot.data}
+      title="Global graph"
+      subtitle={subtitle}
+      backTo="/"
+      defaultLayout="force"
+      extras={
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-[12px] text-mute">Seen on</span>
+          {[1, 2, 5].map((n) => (
+            <button
+              key={n}
+              type="button"
+              onClick={() => setMinSeenOn(n)}
+              className={`rounded-md px-2 py-1 text-[12px] ${
+                minSeenOn === n ? "bg-ink text-canvas" : "text-mute hover:text-ink"
+              }`}
+            >
+              {n}+ sites
+            </button>
+          ))}
+        </div>
+      }
+    />
   );
 }

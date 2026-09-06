@@ -1,39 +1,52 @@
-import { RotateCcw, Tag } from "lucide-react";
-import type { KeyboardEvent } from "react";
+import { GitBranch, Orbit, RotateCcw, Spline } from "lucide-react";
+import type { ReactNode } from "react";
 import { Button } from "@/src/components/ui/button";
+import {
+  GRAPH_LAYOUT_LABELS,
+  GRAPH_LAYOUT_MODES,
+  type GraphLayoutMode,
+} from "@/src/graph/layouts";
 import { useGraphStore } from "@/src/graph/useGraphStore";
-import { CONNECTION_TYPES, CONNECTION_TYPE_LABELS, type ConnectionType, type ScanGraphSnapshot } from "@/src/types/graph";
+import { CONNECTION_TYPE_LABELS, type ConnectionType } from "@/src/types/graph";
 import { cn } from "@/src/lib/utils";
 
 const FILTER_TYPES: ConnectionType[] = [
-  "link",
   "script",
-  "image",
   "iframe",
+  "network",
+  "image",
   "stylesheet",
   "font",
-  "network",
+  "media",
+  "link",
 ];
 
-export function GraphToolbar({ snapshot }: { snapshot: ScanGraphSnapshot }) {
+const LAYOUT_ICONS: Record<GraphLayoutMode, typeof Orbit> = {
+  radial: Orbit,
+  tree: GitBranch,
+  force: Spline,
+};
+
+export function GraphToolbar({ extras }: { extras?: ReactNode }) {
   const enabledTypes = useGraphStore((state) => state.enabledTypes);
   const toggleType = useGraphStore((state) => state.toggleType);
-  const searchQuery = useGraphStore((state) => state.searchQuery);
-  const setSearch = useGraphStore((state) => state.setSearch);
-  const selectNode = useGraphStore((state) => state.selectNode);
   const showLabels = useGraphStore((state) => state.showLabels);
   const setShowLabels = useGraphStore((state) => state.setShowLabels);
   const thirdPartyOnly = useGraphStore((state) => state.thirdPartyOnly);
   const setThirdPartyOnly = useGraphStore((state) => state.setThirdPartyOnly);
   const hideCommonInfra = useGraphStore((state) => state.hideCommonInfra);
   const setHideCommonInfra = useGraphStore((state) => state.setHideCommonInfra);
+  const hideFirstParty = useGraphStore((state) => state.hideFirstParty);
+  const setHideFirstParty = useGraphStore((state) => state.setHideFirstParty);
+  const layoutMode = useGraphStore((state) => state.layoutMode);
+  const setLayoutMode = useGraphStore((state) => state.setLayoutMode);
   const resetLayout = useGraphStore((state) => state.resetLayout);
   const resetFilters = useGraphStore((state) => state.resetFilters);
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 p-4">
-      <div className="pointer-events-auto mx-auto flex max-w-6xl flex-col gap-3 rounded-sm border border-line/80 bg-panel/90 px-4 py-3 backdrop-blur-md">
-        <div className="flex flex-wrap items-center gap-2">
+    <div className="z-20 shrink-0 border-t border-line bg-canvas px-6 py-3">
+      <div className="flex flex-col gap-2.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           {FILTER_TYPES.map((type) => {
             const on = enabledTypes[type];
             return (
@@ -42,51 +55,56 @@ export function GraphToolbar({ snapshot }: { snapshot: ScanGraphSnapshot }) {
                 type="button"
                 onClick={() => toggleType(type)}
                 className={cn(
-                  "rounded-sm border px-2 py-1 font-mono text-[10px] tracking-[0.16em] uppercase",
-                  on ? "border-cyan/50 text-cyan" : "border-line text-mute",
+                  "rounded-md px-2 py-1 text-[12px]",
+                  on ? "bg-raised text-ink" : "text-mute hover:text-ink",
                 )}
               >
-                {CONNECTION_TYPE_LABELS[type]} {on ? "✓" : "○"}
+                {CONNECTION_TYPE_LABELS[type]}
               </button>
             );
           })}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <input
-            value={searchQuery}
-            onChange={(event) => setSearch(event.target.value)}
-            onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
-              if (event.key !== "Enter") return;
-              const query = searchQuery.trim().toLowerCase();
-              if (!query) return;
-              const match = snapshot.nodes.find(
-                (node) => node.domain.includes(query) || node.hostnames.some((host) => host.includes(query)),
+          <div className="flex overflow-hidden rounded-md border border-line">
+            {GRAPH_LAYOUT_MODES.map((mode) => {
+              const Icon = LAYOUT_ICONS[mode];
+              const on = layoutMode === mode;
+              return (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setLayoutMode(mode)}
+                  className={cn(
+                    "inline-flex h-8 items-center gap-1.5 px-2.5 text-[12px]",
+                    on ? "bg-raised text-ink" : "text-mute hover:text-ink",
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {GRAPH_LAYOUT_LABELS[mode]}
+                </button>
               );
-              if (match) selectNode(match.domain);
-            }}
-            placeholder="Search domains"
-            className="h-8 min-w-[180px] flex-1 border border-line bg-canvas px-3 text-[12px] text-ink outline-none placeholder:text-mute/70 focus:border-cyan/50"
-          />
+            })}
+          </div>
           <Button variant="ghost" size="sm" onClick={() => setShowLabels(!showLabels)}>
-            <Tag className="h-3 w-3" />
             {showLabels ? "Labels" : "No labels"}
           </Button>
           <Button variant="ghost" size="sm" onClick={() => setThirdPartyOnly(!thirdPartyOnly)}>
-            {thirdPartyOnly ? "Trackers only" : "All categories"}
+            {thirdPartyOnly ? "Trackers only" : "All third parties"}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setHideFirstParty(!hideFirstParty)}>
+            {hideFirstParty ? "Site assets hidden" : "Site assets"}
           </Button>
           <Button variant="ghost" size="sm" onClick={() => setHideCommonInfra(!hideCommonInfra)}>
             {hideCommonInfra ? "Infra hidden" : "Hide infra"}
           </Button>
           <Button variant="subtle" size="sm" onClick={resetLayout}>
             <RotateCcw className="h-3 w-3" />
-            Reset layout
+            Relayout
           </Button>
           <Button variant="subtle" size="sm" onClick={resetFilters}>
-            Reset filters
+            Reset
           </Button>
-          <span className="hidden text-[10px] tracking-[0.16em] text-mute uppercase sm:inline">
-            {CONNECTION_TYPES.length} relation types
-          </span>
+          {extras}
         </div>
       </div>
     </div>

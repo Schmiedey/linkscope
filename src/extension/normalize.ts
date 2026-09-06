@@ -1,4 +1,6 @@
-import { categorizeDomain, isTrackerCategory } from "@/src/analysis/categorizer";
+import { describeDomain } from "@/src/analysis/categorizer";
+import { isTrackerCategory } from "@/src/analysis/categorizer";
+import { isFirstPartyDomain } from "@/src/analysis/firstParty";
 import { hostnameFromUrl, registrableDomain } from "@/src/lib/domain";
 import type {
   ConnectionType,
@@ -80,15 +82,21 @@ export function normalizeScan(raw: RawScanPayload): NormalizedScan {
 
   for (const domain of domains) {
     const isOrigin = domain === originDomain;
-    const category = isOrigin ? "origin" : categorizeDomain(domain);
+    const isFirstParty = isOrigin || isFirstPartyDomain(originDomain, domain);
+    const listed = isOrigin
+      ? { category: "origin" as const, listed: false, owner: undefined }
+      : describeDomain(domain);
     nodes.push({
       id: domain,
       domain,
-      category,
+      category: isOrigin ? "origin" : listed.category,
       isOrigin,
       isSite: isOrigin,
+      isFirstParty,
       referenceCount: referenceByDomain.get(domain) ?? 0,
       hostnames: Array.from(hostnamesByDomain.get(domain) ?? [domain]).sort(),
+      owner: listed.owner,
+      listed: listed.listed,
     });
   }
 
@@ -99,8 +107,10 @@ export function normalizeScan(raw: RawScanPayload): NormalizedScan {
   });
 
   const edgeList = Array.from(edges.values()).sort((a, b) => a.id.localeCompare(b.id));
-  const thirdPartyCount = nodes.filter((node) => !node.isOrigin).length;
-  const trackerCount = nodes.filter((node) => isTrackerCategory(node.category)).length;
+  const thirdPartyCount = nodes.filter((node) => !node.isOrigin && !node.isFirstParty).length;
+  const trackerCount = nodes.filter(
+    (node) => !node.isOrigin && !node.isFirstParty && isTrackerCategory(node.category),
+  ).length;
 
   return {
     originDomain,

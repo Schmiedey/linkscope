@@ -1,55 +1,54 @@
 @import "tailwindcss";
-@import "@fontsource/syne/500.css";
-@import "@fontsource/syne/700.css";
-@import "@fontsource/syne/800.css";
+@import "@fontsource/newsreader/400.css";
+@import "@fontsource/newsreader/500.css";
+@import "@fontsource/newsreader/600.css";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
 @import "@fontsource/ibm-plex-mono/400.css";
-@import "@fontsource/ibm-plex-mono/500.css";
 
 @theme {
-  --font-display: "Syne", sans-serif;
+  --font-display: "Newsreader", "Iowan Old Style", Georgia, serif;
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
-  --color-canvas: #07090d;
-  --color-panel: #0c1118;
-  --color-raised: #121a24;
-  --color-ink: #e7eef6;
-  --color-mute: #7d8b99;
-  --color-line: #1c2733;
-  --color-cyan: #3ee0d4;
-  --color-amber: #e8b44c;
-  --color-rose: #e06c75;
-  --color-lime: #9be15d;
+  --color-canvas: #ffffff;
+  --color-panel: #fafafa;
+  --color-raised: #f4f4f5;
+  --color-ink: #171717;
+  --color-mute: #737373;
+  --color-line: #e5e5e5;
+  --color-cyan: #171717;
+  --color-amber: #a16207;
+  --color-rose: #b91c1c;
+  --color-lime: #3f6212;
 }
 
 html,
 body,
 #root {
+  height: 100%;
   min-height: 100%;
   background: var(--color-canvas);
   color: var(--color-ink);
 }
 
-body {
-  margin: 0;
-  font-family: var(--font-mono);
-  letter-spacing: 0.01em;
+html.popup-root,
+html.popup-root body,
+html.popup-root #root {
+  min-height: 0;
+  height: auto;
+  width: 320px;
 }
 
-body::before {
-  content: "";
-  pointer-events: none;
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  opacity: 0.35;
-  background-image:
-    radial-gradient(1200px 600px at 12% -10%, rgba(62, 224, 212, 0.08), transparent 55%),
-    radial-gradient(900px 500px at 110% 10%, rgba(232, 180, 76, 0.05), transparent 50%),
-    url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.35'/%3E%3C/svg%3E");
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
 #root {
   position: relative;
-  z-index: 1;
 }
 
 h1,
@@ -57,7 +56,8 @@ h2,
 h3,
 .font-display {
   font-family: var(--font-display);
-  letter-spacing: -0.03em;
+  font-weight: 500;
+  letter-spacing: -0.02em;
 }
 
 button,
@@ -66,16 +66,20 @@ input {
 }
 
 ::selection {
-  background: rgba(62, 224, 212, 0.28);
+  background: rgba(23, 23, 23, 0.12);
 }
 
-.sigma-container {
-  background: #07090d !important;
+.graph-stage > div,
+.graph-stage canvas {
+  width: 100% !important;
+  height: 100% !important;
 }
 
-.app-grid {
-  background-image:
-    linear-gradient(rgba(28, 39, 51, 0.45) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(28, 39, 51, 0.45) 1px, transparent 1px);
-  background-size: 48px 48px;
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
 }

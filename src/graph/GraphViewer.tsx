@@ -1,44 +1,97 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, type KeyboardEvent, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { enrichSnapshot } from "@/src/analysis/enrich";
+import { exportGraphPng, exportScanCsv, exportScanJson } from "@/src/export/scanExport";
 import { GraphCanvas } from "@/src/graph/GraphCanvas";
 import { GraphToolbar } from "@/src/graph/GraphToolbar";
 import { NodeInspector } from "@/src/graph/NodeInspector";
+import { bestSearchMatch } from "@/src/graph/filters";
+import type { GraphLayoutMode } from "@/src/graph/layouts";
 import { useGraphStore } from "@/src/graph/useGraphStore";
-import type { ScanGraphSnapshot } from "@/src/types/graph";
+import type { ScanGraphSnapshot, ScanRow } from "@/src/types/graph";
 
 export function GraphViewer({
   snapshot,
+  scan,
   title,
   subtitle,
   backTo = "/",
+  defaultLayout = "radial",
+  extras,
 }: {
   snapshot: ScanGraphSnapshot;
+  scan?: ScanRow;
   title: string;
   subtitle?: string;
   backTo?: string;
+  defaultLayout?: GraphLayoutMode;
+  extras?: ReactNode;
 }) {
+  const searchQuery = useGraphStore((state) => state.searchQuery);
+  const setSearch = useGraphStore((state) => state.setSearch);
+  const selectNode = useGraphStore((state) => state.selectNode);
+
+  const graph = useMemo(() => enrichSnapshot(snapshot), [snapshot]);
+
   useEffect(() => {
-    useGraphStore.getState().resetFilters();
-  }, [snapshot.scanId, snapshot.originDomain]);
+    const store = useGraphStore.getState();
+    store.resetFilters();
+    store.setLayoutMode(defaultLayout);
+  }, [defaultLayout, snapshot.originDomain, snapshot.scanId]);
+
+  const onSearchKey = (event: KeyboardEvent<HTMLInputElement>): void => {
+    if (event.key !== "Enter") return;
+    const match = bestSearchMatch(graph.nodes, searchQuery);
+    if (match) selectNode(match.domain);
+  };
 
   return (
-    <div className="app-grid relative h-screen w-screen overflow-hidden bg-canvas">
-      <header className="absolute top-0 right-0 left-0 z-20 flex items-center justify-between px-5 py-4">
-        <div>
-          <p className="text-[10px] tracking-[0.28em] text-cyan uppercase">LinkScope</p>
-          <h1 className="font-display text-2xl text-ink">{title}</h1>
-          {subtitle ? <p className="text-[11px] text-mute">{subtitle}</p> : null}
+    <div className="flex h-full min-h-0 flex-col bg-canvas">
+      <header className="z-20 flex shrink-0 flex-wrap items-center gap-4 border-b border-line px-6 py-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="font-display truncate text-[22px] leading-none text-ink">{title}</h1>
+          {subtitle ? <p className="mt-1 text-[12px] text-mute">{subtitle}</p> : null}
         </div>
-        <Link
-          to={backTo.replace(/^#/, "")}
-          className="border border-line bg-panel/80 px-3 py-2 text-[10px] tracking-[0.18em] text-mute uppercase hover:text-cyan"
-        >
-          Dashboard
-        </Link>
+        <label className="flex min-w-[200px] flex-1 items-center md:max-w-xs">
+          <span className="sr-only">Search domains</span>
+          <input
+            value={searchQuery}
+            onChange={(event) => setSearch(event.target.value)}
+            onKeyDown={onSearchKey}
+            placeholder="Search"
+            className="h-8 w-full rounded-md border border-line bg-canvas px-3 text-[13px] text-ink outline-none placeholder:text-mute/80 focus:border-ink/40"
+          />
+        </label>
+        <div className="flex items-center gap-3 text-[13px]">
+          <button
+            type="button"
+            className="text-mute hover:text-ink"
+            onClick={() => exportScanJson(scan, graph)}
+          >
+            JSON
+          </button>
+          <button type="button" className="text-mute hover:text-ink" onClick={() => exportScanCsv(graph)}>
+            CSV
+          </button>
+          <button
+            type="button"
+            className="text-mute hover:text-ink"
+            onClick={() => exportGraphPng(useGraphStore.getState().cy, graph.originDomain)}
+          >
+            PNG
+          </button>
+          <Link to={backTo.replace(/^#/, "")} className="text-mute hover:text-ink">
+            Dashboard
+          </Link>
+        </div>
       </header>
-      <GraphCanvas snapshot={snapshot} />
-      <NodeInspector snapshot={snapshot} />
-      <GraphToolbar snapshot={snapshot} />
+      <div className="flex min-h-0 min-w-0 flex-1">
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-canvas">
+          <GraphCanvas snapshot={graph} />
+        </div>
+        <NodeInspector snapshot={graph} />
+      </div>
+      <GraphToolbar extras={extras} />
     </div>
   );
 }

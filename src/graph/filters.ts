@@ -1,33 +1,42 @@
+import { isFirstPartyDomain } from "@/src/analysis/firstParty";
 import type { ConnectionType, DomainCategory, GraphEdgeRecord, GraphNodeRecord } from "@/src/types/graph";
-import { INFRA_CATEGORIES } from "@/src/types/graph";
+import { CONNECTION_TYPES, INFRA_CATEGORIES, TRACKER_CATEGORIES } from "@/src/types/graph";
+
+export function defaultEnabledTypes(): Record<ConnectionType, boolean> {
+  const enabled = {} as Record<ConnectionType, boolean>;
+  for (const type of CONNECTION_TYPES) {
+    enabled[type] = type !== "link" && type !== "other";
+  }
+  return enabled;
+}
 
 export type GraphFilterState = {
   enabledTypes: Record<ConnectionType, boolean>;
   thirdPartyOnly: boolean;
   hideCommonInfra: boolean;
+  hideFirstParty: boolean;
   searchQuery: string;
 };
 
-export function isNodeVisible(
-  node: GraphNodeRecord,
-  edges: GraphEdgeRecord[],
-  filters: GraphFilterState,
-): boolean {
-  if (node.isOrigin || node.isSite) {
-    if (filters.searchQuery && !matchesSearch(node, filters.searchQuery) && !neighborMatches(node, edges, filters.searchQuery)) {
-      return true;
-    }
-    return true;
-  }
-  if (filters.thirdPartyOnly && node.isSite) return false;
-  if (filters.hideCommonInfra && INFRA_CATEGORIES.has(node.category as DomainCategory) && !node.isSite) {
-    return false;
-  }
-  const connected = edges.some(
-    (edge) =>
-      filters.enabledTypes[edge.type] && (edge.source === node.domain || edge.target === node.domain),
-  );
-  return connected;
+export function bestSearchMatch(
+  nodes: GraphNodeRecord[],
+  query: string,
+): GraphNodeRecord | null {
+  const q = query.trim().toLowerCase();
+  if (!q) return null;
+  const ranked = nodes
+    .map((node) => {
+      const domain = node.domain;
+      if (domain === q || domain === `${q}.com`) return { node, score: 0 };
+      if (domain.startsWith(`${q}.`) || domain.startsWith(q)) return { node, score: 1 };
+      if (domain.split(".")[0] === q) return { node, score: 2 };
+      if (domain.includes(q)) return { node, score: 10 + domain.indexOf(q) };
+      if (node.hostnames.some((host) => host.includes(q))) return { node, score: 30 };
+      return null;
+    })
+    .filter((item): item is { node: GraphNodeRecord; score: number } => item !== null)
+    .sort((a, b) => a.score - b.score);
+  return ranked[0]?.node ?? null;
 }
 
 export function matchesSearch(node: GraphNodeRecord, query: string): boolean {
@@ -37,11 +46,48 @@ export function matchesSearch(node: GraphNodeRecord, query: string): boolean {
   return node.hostnames.some((host) => host.includes(q));
 }
 
-function neighborMatches(node: GraphNodeRecord, edges: GraphEdgeRecord[], query: string): boolean {
-  const q = query.trim().toLowerCase();
-  if (!q) return false;
-  return edges.some((edge) => {
-    if (edge.source !== node.domain && edge.target !== node.domain) return false;
-    return edge.source.includes(q) || edge.target.includes(q);
-  });
+export function isNodeVisible(
+  node: GraphNodeRecord,
+  edges: GraphEdgeRecord[],
+  filters: GraphFilterState,
+  originDomain: string,
+): boolean {
+  if (node.isOrigin || node.isSite) return true;
+  const firstParty = Boolean(node.isFirstParty) || isFirstPartyDomain(originDomain, node.domain);
+  if (filters.hideFirstParty && firstParty) return false;
+  if (filters.hideCommonInfra && INFRA_CATEGORIES.has(node.category as DomainCategory) && !firstParty) {
+    return false;
+  }
+  if (filters.thirdPartyOnly && !TRACKER_CATEGORIES.has(node.category as DomainCategory)) {
+    return false;
+  }
+  if (filters.thirdPartyOnly && firstParty) return false;
+  return edges.some(
+    (edge) =>
+      filters.enabledTypes[edge.type] && (edge.source === node.domain || edge.target === node.domain),
+  );
+}
+
+export function filterSnapshot(
+  nodes: GraphNodeRecord[],
+  edges: GraphEdgeRecord[],
+  filters: GraphFilterState,
+  originDomain: string,
+): { nodes: GraphNodeRecord[]; edges: GraphEdgeRecord[] } {
+  const visibleEdges = edges.filter((edge) => filters.enabledTypes[edge.type]);
+  const visibleNodes = nodes.filter((node) => isNodeVisible(node, visibleEdges, filters, originDomain));
+  const ids = new Set(visibleNodes.map((node) => node.domain));
+  return {
+    nodes: visibleNodes,
+    edges: visibleEdges.filter((edge) => ids.has(edge.source) && ids.has(edge.target)),
+  };
+}
+
+export function neighborIds(domain: string, edges: GraphEdgeRecord[]): string[] {
+  const ids = new Set<string>([domain]);
+  for (const edge of edges) {
+    if (edge.source === domain) ids.add(edge.target);
+    if (edge.target === domain) ids.add(edge.source);
+  }
+  return Array.from(ids);
 }

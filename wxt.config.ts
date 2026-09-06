@@ -3,16 +3,34 @@ import { defineConfig } from "wxt";
 
 export default defineConfig({
   modules: ["@wxt-dev/module-react"],
+  dev: {
+    server: {
+      port: 3000,
+      strictPort: true,
+    },
+  },
   manifest: {
     name: "LinkScope",
     description:
       "See every site, service, tracker, script, and external domain a webpage connects to—visualized as an interactive graph.",
-    permissions: ["activeTab", "scripting", "tabs"],
+    permissions: ["activeTab", "scripting", "tabs", "notifications"],
+    commands: {
+      "scan-active-tab": {
+        suggested_key: {
+          default: "Alt+Shift+L",
+          mac: "Alt+Shift+L",
+        },
+        description: "Scan the current page",
+      },
+    },
     action: {
       default_title: "LinkScope",
     },
   },
   vite: () => ({
     plugins: [tailwindcss()],
+    optimizeDeps: {
+      include: ["cytoscape", "cytoscape-fcose"],
+    },
   }),
 });

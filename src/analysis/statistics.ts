@@ -5,22 +5,28 @@ export type OverviewStats = {
   trackers: number;
 };
 
-export function insightLines(stats: OverviewStats, densestSite?: string): string[] {
+export function insightLines(
+  stats: OverviewStats,
+  densestSite?: string,
+  densestTrackers?: number,
+): string[] {
   const lines: string[] = [];
   if (stats.sites === 0) {
-    return ["Scan a website to start your personal map of the web."];
+    return ["Scan a website to start mapping what pages load besides themselves."];
   }
-  if (stats.domains > 0 && stats.sites > 0) {
-    const avg = Math.round(stats.domains / stats.sites);
-    lines.push(`About ${String(avg)} unique domains per scanned site.`);
-  }
-  if (stats.trackers > 0) {
+  if (stats.trackers === 0) {
+    lines.push("No third-party trackers classified yet. Footer links and first-party CDNs are hidden by default.");
+  } else {
     const pct = Math.round((stats.trackers / Math.max(stats.domains, 1)) * 100);
-    lines.push(`${String(stats.trackers)} tracker-like domains (${String(pct)}% of the catalog).`);
+    lines.push(`${String(stats.trackers)} tracker domains across your scans (${String(pct)}% of the catalog).`);
   }
-  if (densestSite) {
-    lines.push(`${densestSite} currently has the largest saved graph.`);
+  if (densestSite && densestTrackers !== undefined) {
+    lines.push(
+      densestTrackers > 0
+        ? `${densestSite} has the most classified trackers (${String(densestTrackers)}).`
+        : `${densestSite} has the largest graph, but no classified trackers.`,
+    );
   }
-  lines.push("Everything stays on this machine. Nothing is uploaded.");
+  lines.push("Scans stay in this browser. Nothing is uploaded.");
   return lines;
 }

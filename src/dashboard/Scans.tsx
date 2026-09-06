@@ -1,49 +1,114 @@
 import { Link } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { scoreFromScan } from "@/src/analysis/score";
+import { PrivacyScoreMark } from "@/src/components/PrivacyScoreMark";
+import { FilterChip, SearchInput } from "@/src/components/SearchControls";
 import { formatCount, formatRelativeTime } from "@/src/lib/utils";
 import { useAsync } from "@/src/lib/useAsync";
 import { listRecentScans } from "@/src/storage/scans";
 
+type CaptureFilter = "all" | "snapshot" | "watch";
+type ScanSort = "newest" | "trackers" | "score";
+
 export function ScansPage() {
   const now = Date.now();
-  const scans = useAsync(() => listRecentScans(200), []);
+  const scans = useAsync(() => listRecentScans(400), []);
+  const [query, setQuery] = useState("");
+  const [capture, setCapture] = useState<CaptureFilter>("all");
+  const [sort, setSort] = useState<ScanSort>("newest");
+
+  const rows = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    let list = [...(scans.data ?? [])];
+    if (needle) {
+      list = list.filter(
+        (scan) =>
+          scan.domain.toLowerCase().includes(needle) ||
+          scan.title.toLowerCase().includes(needle) ||
+          scan.url.toLowerCase().includes(needle),
+      );
+    }
+    if (capture !== "all") {
+      list = list.filter((scan) => (scan.captureMode ?? "snapshot") === capture);
+    }
+    list.sort((a, b) => {
+      if (sort === "trackers") return b.trackerCount - a.trackerCount || b.timestamp - a.timestamp;
+      if (sort === "score") return scoreFromScan(a).score - scoreFromScan(b).score || b.timestamp - a.timestamp;
+      return b.timestamp - a.timestamp;
+    });
+    return list;
+  }, [scans.data, query, capture, sort]);
 
   return (
-    <div className="px-8 py-8">
-      <header className="mb-8">
-        <p className="text-[10px] tracking-[0.32em] text-cyan uppercase">History</p>
-        <h1 className="font-display mt-1 text-4xl">Scan snapshots</h1>
-        <p className="mt-2 max-w-xl text-[13px] text-mute">
-          Every scan is frozen in place. Reopen any graph exactly as it was captured.
-        </p>
+    <div className="px-10 py-10">
+      <header className="mb-6">
+        <h1 className="font-display text-4xl">Scan snapshots</h1>
+        <p className="mt-2 max-w-xl text-[14px] text-mute">Every scan is frozen in place. Reopen any graph as it was captured.</p>
       </header>
-      {scans.data?.length ? (
-        <div className="overflow-hidden border border-line">
-          <table className="w-full text-left text-[12px]">
-            <thead className="bg-panel text-[10px] tracking-[0.16em] text-mute uppercase">
-              <tr>
-                <th className="px-4 py-3 font-normal">Site</th>
-                <th className="px-4 py-3 font-normal">Domains</th>
-                <th className="px-4 py-3 font-normal">Trackers</th>
-                <th className="px-4 py-3 font-normal">When</th>
-              </tr>
-            </thead>
-            <tbody>
-              {scans.data.map((scan) => (
-                <tr key={scan.id} className="border-t border-line hover:bg-raised/70">
-                  <td className="px-4 py-3">
-                    <Link to={`/graph/${String(scan.id)}`} className="text-ink hover:text-cyan">
+      <div className="mb-6 flex flex-wrap items-center gap-2">
+        <SearchInput
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search site, title, or URL"
+          aria-label="Search scans"
+        />
+        <FilterChip on={capture === "all"} onClick={() => setCapture("all")}>
+          All
+        </FilterChip>
+        <FilterChip on={capture === "snapshot"} onClick={() => setCapture("snapshot")}>
+          Snapshot
+        </FilterChip>
+        <FilterChip on={capture === "watch"} onClick={() => setCapture("watch")}>
+          Watch
+        </FilterChip>
+        <span className="mx-1 text-line">·</span>
+        <FilterChip on={sort === "newest"} onClick={() => setSort("newest")}>
+          Newest
+        </FilterChip>
+        <FilterChip on={sort === "trackers"} onClick={() => setSort("trackers")}>
+          Most trackers
+        </FilterChip>
+        <FilterChip on={sort === "score"} onClick={() => setSort("score")}>
+          Worst score
+        </FilterChip>
+      </div>
+      {rows.length ? (
+        <table className="w-full text-left text-[13px]">
+          <thead className="text-[12px] text-mute">
+            <tr>
+              <th className="pb-2 font-normal">Site</th>
+              <th className="pb-2 font-normal">Score</th>
+              <th className="pb-2 font-normal">Third parties</th>
+              <th className="pb-2 font-normal">Trackers</th>
+              <th className="pb-2 font-normal">Capture</th>
+              <th className="pb-2 font-normal">When</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((scan) => {
+              const mark = scoreFromScan(scan);
+              return (
+                <tr key={scan.id} className="border-t border-line">
+                  <td className="py-3">
+                    <Link to={`/graph/${String(scan.id)}`} className="text-ink hover:underline">
                       {scan.domain}
                     </Link>
-                    <div className="max-w-md truncate text-[11px] text-mute">{scan.url}</div>
+                    <div className="max-w-md truncate text-[12px] text-mute">{scan.url}</div>
                   </td>
-                  <td className="px-4 py-3">{formatCount(scan.nodeCount)}</td>
-                  <td className="px-4 py-3">{formatCount(scan.trackerCount)}</td>
-                  <td className="px-4 py-3 text-mute">{formatRelativeTime(scan.timestamp, now)}</td>
+                  <td className="py-3">
+                    <PrivacyScoreMark compact score={mark.score} grade={mark.grade} />
+                  </td>
+                  <td className="py-3">{formatCount(scan.thirdPartyCount)}</td>
+                  <td className="py-3">{formatCount(scan.trackerCount)}</td>
+                  <td className="py-3 text-mute">{scan.captureMode === "watch" ? "Watch" : "Snapshot"}</td>
+                  <td className="py-3 text-mute">{formatRelativeTime(scan.timestamp, now)}</td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              );
+            })}
+          </tbody>
+        </table>
+      ) : scans.data?.length ? (
+        <p className="text-mute">No snapshots match that filter.</p>
       ) : (
         <p className="text-mute">No snapshots yet. Scan a website from the extension popup.</p>
       )}

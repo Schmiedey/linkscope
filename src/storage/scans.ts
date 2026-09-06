@@ -1,22 +1,36 @@
+import { scoreSnapshot } from "@/src/analysis/score";
 import { normalizeScan } from "@/src/extension/normalize";
+import { recordScanAlert } from "@/src/storage/alerts";
+import { exportArchive } from "@/src/storage/archive";
 import { db } from "@/src/storage/database";
 import type {
+  CaptureMode,
   ConnectionType,
   DomainRow,
   GraphEdgeRecord,
   GraphNodeRecord,
   RawScanPayload,
+  ScanGraphRow,
   ScanGraphSnapshot,
   ScanRow,
   SightingRow,
   SiteRow,
 } from "@/src/types/graph";
 
-export async function persistScan(raw: RawScanPayload): Promise<number> {
-  const normalized = normalizeScan(raw);
-  const now = Date.now();
+export type PersistScanOptions = {
+  captureMode?: CaptureMode;
+  durationMs?: number;
+};
 
-  return await db.transaction("rw", db.sites, db.scans, db.scanGraphs, db.domains, db.sightings, async () => {
+export async function persistScan(raw: RawScanPayload, options: PersistScanOptions = {}): Promise<number> {
+  const normalized = normalizeScan(raw);
+  const scored = scoreSnapshot({ scanId: 0, originDomain: normalized.originDomain, nodes: normalized.snapshot.nodes, edges: normalized.snapshot.edges });
+  const now = Date.now();
+  const existingSite = await db.sites.where("domain").equals(normalized.originDomain).first();
+  const previous = existingSite?.id !== undefined ? await getLatestScanForSite(existingSite.id) : undefined;
+  const previousGraph = previous?.id !== undefined ? await getScanGraph(previous.id) : undefined;
+
+  const scanId = await db.transaction("rw", db.sites, db.scans, db.scanGraphs, db.domains, db.sightings, async () => {
     let site = await db.sites.where("domain").equals(normalized.originDomain).first();
     if (site?.id !== undefined) {
       await db.sites.update(site.id, {
@@ -54,6 +68,11 @@ export async function persistScan(raw: RawScanPayload): Promise<number> {
       edgeCount: normalized.snapshot.edges.length,
       thirdPartyCount: normalized.thirdPartyCount,
       trackerCount: normalized.trackerCount,
+      captureMode: options.captureMode ?? "snapshot",
+      durationMs: options.durationMs,
+      privacyScore: scored.score,
+      unknownCount: scored.unknown,
+      iframeCount: scored.iframeCount,
     });
 
     await db.scanGraphs.put({
@@ -131,6 +150,14 @@ export async function persistScan(raw: RawScanPayload): Promise<number> {
 
     return scanId;
   });
+
+  const next = await getScan(scanId);
+  const nextGraph = await getScanGraph(scanId);
+  if (next && nextGraph) {
+    await recordScanAlert(previous, next, nextGraph, previousGraph);
+  }
+
+  return scanId;
 }
 
 export async function getScan(scanId: number): Promise<ScanRow | undefined> {
@@ -164,19 +191,47 @@ export async function getSiteByDomain(domain: string): Promise<SiteRow | undefin
   return await db.sites.where("domain").equals(domain).first();
 }
 
+export async function getSite(siteId: number): Promise<SiteRow | undefined> {
+  return await db.sites.get(siteId);
+}
+
 export async function getLatestScanForSite(siteId: number): Promise<ScanRow | undefined> {
   const scans = await listScansForSite(siteId);
   return scans[0];
 }
 
+export async function listLatestScans(): Promise<ScanRow[]> {
+  const scans = await db.scans.orderBy("timestamp").reverse().toArray();
+  const seen = new Set<number>();
+  const latest: ScanRow[] = [];
+  for (const scan of scans) {
+    if (seen.has(scan.siteId)) continue;
+    seen.add(scan.siteId);
+    latest.push(scan);
+  }
+  return latest;
+}
+
+export async function listLatestGraphs(): Promise<ScanGraphSnapshot[]> {
+  const latest = await listLatestScans();
+  const graphs: ScanGraphSnapshot[] = [];
+  for (const scan of latest) {
+    if (scan.id === undefined) continue;
+    const graph = await getScanGraph(scan.id);
+    if (graph) graphs.push(graph);
+  }
+  return graphs;
+}
+
 export async function clearAllData(): Promise<void> {
-  await db.transaction("rw", db.sites, db.scans, db.scanGraphs, db.domains, db.sightings, async () => {
+  await db.transaction("rw", [db.sites, db.scans, db.scanGraphs, db.domains, db.sightings, db.alerts], async () => {
     await Promise.all([
       db.sites.clear(),
       db.scans.clear(),
       db.scanGraphs.clear(),
       db.domains.clear(),
       db.sightings.clear(),
+      db.alerts.clear(),
     ]);
   });
 }
@@ -221,6 +276,7 @@ export function mergeSnapshots(
           ...node,
           isOrigin: isSite,
           isSite,
+          isFirstParty: Boolean(node.isFirstParty),
           category: node.category === "origin" ? (isSite ? "origin" : node.category) : node.category,
         });
       } else {
@@ -323,4 +379,15 @@ export async function getGlobalSnapshot(
     truncated,
     totalNodes,
   };
+}
+
+export async function exportAllData(): Promise<{
+  exportedAt: string;
+  sites: SiteRow[];
+  scans: ScanRow[];
+  graphs: ScanGraphRow[];
+  domains: DomainRow[];
+  sightings: SightingRow[];
+}> {
+  return await exportArchive();
 }

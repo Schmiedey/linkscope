@@ -1,9 +1,18 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="popup-root">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LinkScope</title>
+    <style>
+      html.popup-root,
+      html.popup-root body,
+      html.popup-root #root {
+        min-height: 0 !important;
+        height: auto !important;
+        width: 320px;
+      }
+    </style>
     <meta name="manifest.type" content="browser_action" />
   </head>
   <body>

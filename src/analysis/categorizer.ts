@@ -1,3 +1,4 @@
+import { lookupDisconnect } from "@/src/analysis/list";
 import type { DomainCategory } from "@/src/types/graph";
 
 const SEED: Record<string, DomainCategory> = {
@@ -121,7 +122,7 @@ const SEED: Record<string, DomainCategory> = {
   "recaptcha.net": "security",
   "hcaptcha.com": "security",
   "facebook.com": "social",
-  "facebook.net": "social",
+  "facebook.net": "advertising",
   "instagram.com": "social",
   "twitter.com": "social",
   "x.com": "social",
@@ -174,18 +175,96 @@ const SEED: Record<string, DomainCategory> = {
   "onetrust.com": "security",
   "cookielaw.org": "security",
   "trustarc.com": "security",
+  "adjust.com": "advertising",
+  "adj.st": "advertising",
+  "ophan.co.uk": "analytics",
+  "permutive.com": "analytics",
+  "snowplowanalytics.com": "analytics",
+  "snowplow.io": "analytics",
+  "matomo.cloud": "analytics",
+  "matomo.org": "analytics",
+  "statsig.com": "analytics",
+  "optimizely.com": "analytics",
+  "launchdarkly.com": "analytics",
+  "branch.io": "analytics",
+  "appsflyer.com": "analytics",
+  "kochava.com": "analytics",
+  "fb.com": "social",
+  "githubassets.com": "cdn",
+  "githubusercontent.com": "cdn",
+  "github.blog": "media",
+  "ctfassets.net": "cdn",
+  "contentful.com": "cdn",
+  "guim.co.uk": "cdn",
+  "stripecdn.com": "cdn",
+  "stripeassets.com": "cdn",
+  "wikimedia.org": "cdn",
+  "youtube-nocookie.com": "media",
+  "mastodon.social": "social",
+  "bsky.app": "social",
+  "bsky.social": "social",
+  "threads.net": "social",
+  "threads.com": "social",
+  "blueskyweb.xyz": "social",
+  "gartner.com": "support",
 };
 
 const SORTED_SUFFIXES = Object.keys(SEED).sort((a, b) => b.length - a.length);
 
-export function categorizeDomain(domain: string): DomainCategory {
+export type DomainDescription = {
+  category: DomainCategory;
+  owner?: string;
+  listed: boolean;
+};
+
+function categorizeFromSeed(domain: string): DomainCategory | null {
   const normalized = domain.toLowerCase();
   for (const suffix of SORTED_SUFFIXES) {
     if (normalized === suffix || normalized.endsWith(`.${suffix}`)) {
-      return SEED[suffix] ?? "unknown";
+      return SEED[suffix] ?? null;
     }
   }
-  return "unknown";
+  return null;
+}
+
+export function describeDomain(domain: string): DomainDescription {
+  const listed = lookupDisconnect(domain);
+  const seed = categorizeFromSeed(domain);
+  const pattern = categorizeByPattern(domain.toLowerCase());
+  return {
+    category: seed ?? listed?.category ?? pattern ?? "unknown",
+    owner: listed?.owner,
+    listed: Boolean(listed),
+  };
+}
+
+export function categorizeDomain(domain: string): DomainCategory {
+  return describeDomain(domain).category;
+}
+
+function categorizeByPattern(domain: string): DomainCategory | null {
+  if (
+    /doubleclick|googlesyndication|googleadservices|adsystem|adservice|adnxs|rubicon|criteo|taboola|outbrain|pubmatic|adsrvr|moatads|adsafeprotected/.test(
+      domain,
+    )
+  ) {
+    return "advertising";
+  }
+  if (
+    /google-analytics|googletagmanager|hotjar|chartbeat|segment\.|mixpanel|amplitude|scorecardresearch|ophan|permutive|snowplow|matomo/.test(
+      domain,
+    )
+  ) {
+    return "analytics";
+  }
+  if (/sentry|datadog|newrelic|bugsnag|logrocket|cloudflareinsights|nr-data/.test(domain)) {
+    return "telemetry";
+  }
+  if (/(^|\.)(facebook|instagram|linkedin|tiktok|pinterest|snapchat)\./.test(domain)) return "social";
+  if (/(cdn|assets|static|images)\./.test(domain) || /(cdn|assets|static)$/.test(domain.split(".")[0] ?? "")) {
+    return "cdn";
+  }
+  return null;
 }
 
 export function isTrackerCategory(category: DomainCategory): boolean {

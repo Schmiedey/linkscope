@@ -59,8 +59,11 @@ export type GraphNodeRecord = {
   category: DomainCategory;
   isOrigin: boolean;
   isSite: boolean;
+  isFirstParty: boolean;
   referenceCount: number;
   hostnames: string[];
+  owner?: string;
+  listed?: boolean;
 };
 
 export type GraphEdgeRecord = {
@@ -87,6 +90,8 @@ export type SiteRow = {
   scanCount: number;
 };
 
+export type CaptureMode = "snapshot" | "watch";
+
 export type ScanRow = {
   id?: number;
   siteId: number;
@@ -98,6 +103,32 @@ export type ScanRow = {
   edgeCount: number;
   thirdPartyCount: number;
   trackerCount: number;
+  captureMode?: CaptureMode;
+  durationMs?: number;
+  privacyScore?: number;
+  unknownCount?: number;
+  iframeCount?: number;
+};
+
+export type AlertKind = "new-trackers" | "tracker-surge";
+
+export type AlertRow = {
+  id?: number;
+  siteId: number;
+  siteDomain: string;
+  fromScanId: number;
+  toScanId: number;
+  timestamp: number;
+  kind: AlertKind;
+  addedTrackers: string[];
+  removedTrackers: string[];
+  trackerDelta: number;
+  read: boolean;
+};
+
+export type SettingRow = {
+  key: string;
+  value: string;
 };
 
 export type ScanGraphRow = {

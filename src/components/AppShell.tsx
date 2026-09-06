@@ -1,6 +1,9 @@
 import { Globe2, History, LayoutDashboard, Network, Settings, Waypoints } from "lucide-react";
-import { NavLink, Outlet } from "react-router-dom";
+import { useEffect } from "react";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { cn } from "@/src/lib/utils";
+import { useAsync } from "@/src/lib/useAsync";
+import { markAlertsRead, unreadAlertCount } from "@/src/storage/alerts";
 
 const NAV = [
   { to: "/", label: "Overview", icon: LayoutDashboard },
@@ -12,14 +15,23 @@ const NAV = [
 ];
 
 export function AppShell() {
+  const location = useLocation();
+  const unread = useAsync(() => unreadAlertCount(), [location.pathname]);
+
+  useEffect(() => {
+    if (location.pathname !== "/") return;
+    void markAlertsRead().then(() => unread.reload());
+    // Reload is stable enough for a pathname-only trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
+
   return (
     <div className="flex min-h-screen bg-canvas">
-      <aside className="flex w-56 shrink-0 flex-col border-r border-line bg-panel/80">
-        <div className="px-5 py-6">
-          <p className="text-[10px] tracking-[0.32em] text-cyan uppercase">LinkScope</p>
-          <h1 className="font-display mt-1 text-2xl">Observatory</h1>
+      <aside className="flex w-52 shrink-0 flex-col border-r border-line">
+        <div className="px-5 py-5">
+          <p className="font-display text-xl">LinkScope</p>
         </div>
-        <nav className="flex flex-1 flex-col gap-1 px-3">
+        <nav className="flex flex-1 flex-col gap-0.5 px-2">
           {NAV.map((item) => (
             <NavLink
               key={item.to}
@@ -27,19 +39,20 @@ export function AppShell() {
               end={item.to === "/"}
               className={({ isActive }) =>
                 cn(
-                  "flex items-center gap-2 rounded-sm px-3 py-2 text-[11px] tracking-[0.16em] uppercase",
-                  isActive ? "bg-raised text-cyan" : "text-mute hover:text-ink",
+                  "flex items-center gap-2 rounded-md px-3 py-2 text-[13px]",
+                  isActive ? "bg-raised text-ink" : "text-mute hover:text-ink",
                 )
               }
             >
-              <item.icon className="h-3.5 w-3.5" />
-              {item.label}
+              <item.icon className="h-4 w-4" />
+              <span className="flex-1">{item.label}</span>
+              {item.to === "/" && (unread.data ?? 0) > 0 ? (
+                <span className="text-[11px] tabular-nums text-rose">{unread.data}</span>
+              ) : null}
             </NavLink>
           ))}
         </nav>
-        <p className="px-5 py-4 text-[10px] leading-relaxed text-mute">
-          Local-first map of the web you actually visit.
-        </p>
+        <p className="px-5 py-4 text-[12px] leading-relaxed text-mute">Local only. Nothing is uploaded.</p>
       </aside>
       <main className="min-w-0 flex-1">
         <Outlet />
