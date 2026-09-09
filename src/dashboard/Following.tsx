@@ -17,7 +17,9 @@ export function FollowingPage() {
         Domains you asked LinkScope to remember. See which of your sites they appear on.
       </p>
       {(followed.data ?? []).length === 0 ? (
-        <p className="mt-8 text-[14px] text-mute">Right-click a node and choose Follow, or follow from a domain page.</p>
+        <p className="mt-8 text-[14px] text-mute">
+          Right-click a graph node and choose Follow, or follow from a domain page. Followed domains show up here.
+        </p>
       ) : (
         <div className="mt-8 space-y-10">
           {(followed.data ?? []).map((domain) => (

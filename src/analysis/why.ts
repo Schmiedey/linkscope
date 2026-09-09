@@ -1,10 +1,5 @@
 import { identifyDomain } from "@/src/analysis/identity";
-import {
-  CONNECTION_TYPE_LABELS,
-  type ConnectionType,
-  type GraphEdgeRecord,
-  type ScanGraphSnapshot,
-} from "@/src/types/graph";
+import { type ConnectionType, type GraphEdgeRecord, type ScanGraphSnapshot } from "@/src/types/graph";
 
 export type LoadHop = {
   domain: string;
@@ -15,7 +10,7 @@ export type LoadHop = {
 
 export type LoadChain = {
   hops: LoadHop[];
-  triggeredBy?: string;
+  triggeredBy: string;
   usedFor: string;
 };
 
@@ -30,6 +25,22 @@ const TYPE_RANK: Record<ConnectionType, number> = {
   link: 7,
   other: 8,
 };
+
+const TRIGGER_LABELS: Record<ConnectionType, string> = {
+  script: "<script>",
+  iframe: "<iframe>",
+  stylesheet: "<link>",
+  font: "<link>",
+  image: "<img>",
+  media: "<video>/<audio>",
+  network: "fetch/XHR",
+  link: "<a>",
+  other: "this page",
+};
+
+export function triggerLabel(type: ConnectionType): string {
+  return TRIGGER_LABELS[type];
+}
 
 function resourceName(url?: string): string | undefined {
   if (!url) return undefined;
@@ -53,7 +64,7 @@ function hopFor(domain: string, via?: ConnectionType, url?: string): LoadHop {
   const identity = identifyDomain(domain);
   return {
     domain,
-    name: identity.name,
+    name: identity.name || domain,
     resource: resourceName(url),
     via,
   };
@@ -87,7 +98,7 @@ export function loadChainFor(snapshot: ScanGraphSnapshot, domain: string): LoadC
   const trigger = lastIncoming?.type;
   return {
     hops,
-    triggeredBy: trigger ? (trigger === "script" ? "<script>" : CONNECTION_TYPE_LABELS[trigger]) : undefined,
+    triggeredBy: trigger ? triggerLabel(trigger) : "this page",
     usedFor: identity.usedFor,
   };
 }

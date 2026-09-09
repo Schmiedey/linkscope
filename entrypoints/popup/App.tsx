@@ -61,6 +61,7 @@ export function PopupApp() {
           tabId: target.id,
           url: target.url,
           notifyIfNew: false,
+          force: true,
         });
         if (alive) await load(domain);
       } catch (err) {
@@ -149,12 +150,15 @@ export function PopupApp() {
             <NutritionLabel nutrition={nutrition} compact />
           </div>
 
-          {diff && (diff.added.length > 0 || diff.removed.length > 0) ? (
+          {diff && glance?.previous ? (
             <section className="mt-4">
               <p className="text-[12px] text-mute">
                 Changes since {formatRelativeTime(diff.from.timestamp, now)}
                 {diff.added.length > 0 ? ` · +${String(diff.added.length)} domains` : ""}
               </p>
+              {diff.added.length === 0 && diff.removed.length === 0 ? (
+                <p className="mt-1.5 text-[12px] text-mute">No domains added or removed.</p>
+              ) : null}
               {diff.added.length > 0 ? (
                 <ul className="mt-1.5 space-y-0.5">
                   {diff.added.slice(0, 6).map((node) => (
@@ -179,8 +183,7 @@ export function PopupApp() {
             </section>
           ) : glance?.latest ? (
             <p className="mt-3 text-[12px] text-mute">
-              Last seen {formatRelativeTime(glance.latest.timestamp, now)}
-              {glance.previous ? "" : " · first check"}
+              Last seen {formatRelativeTime(glance.latest.timestamp, now)} · first check
             </p>
           ) : null}
 

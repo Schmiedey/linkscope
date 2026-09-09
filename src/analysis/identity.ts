@@ -125,15 +125,17 @@ export function riskLabel(risk: DomainRisk): string {
 
 export function identifyDomain(domain: string): DomainIdentity {
   const listed = describeDomain(domain);
+  const category = listed.category || "unknown";
+  const name = namedFromSuffix(domain) || listed.owner?.trim() || domain || "Unknown";
   return {
     domain,
-    name: namedFromSuffix(domain) ?? listed.owner ?? domain,
-    category: listed.category,
-    typeLabel: CATEGORY_LABELS[listed.category],
+    name,
+    category,
+    typeLabel: CATEGORY_LABELS[category],
     owner: listed.owner,
     listed: listed.listed,
-    risk: riskForCategory(listed.category),
-    usedFor: USED_FOR[listed.category],
+    risk: riskForCategory(category),
+    usedFor: USED_FOR[category],
   };
 }
 

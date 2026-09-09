@@ -5,7 +5,13 @@ import type { AlertRow, ScanGraphSnapshot, ScanRow } from "@/src/types/graph";
 
 const SURGE_MIN_ADDED = 2;
 const SURGE_RATIO = 1.25;
-const FIRST_SCAN_SURGE = 3;
+
+/** Trackers jumped by ≥2 and grew ≥25%, or first appeared on a tracker-free site. */
+export function isTrackerSurge(previousCount: number, nextCount: number): boolean {
+  if (previousCount === 0) return nextCount > 0;
+  const delta = nextCount - previousCount;
+  return delta >= SURGE_MIN_ADDED && nextCount >= previousCount * SURGE_RATIO;
+}
 
 export async function listRecentAlerts(limit = 20): Promise<AlertRow[]> {
   return await db.alerts.orderBy("timestamp").reverse().limit(limit).toArray();
@@ -34,12 +40,7 @@ export async function recordScanAlert(
 
   const diff = diffSnapshots(previous, next, previousGraph, nextGraph);
   const delta = next.trackerCount - previous.trackerCount;
-  const surged =
-    previous.trackerCount === 0
-      ? next.trackerCount >= FIRST_SCAN_SURGE
-      : delta >= SURGE_MIN_ADDED && next.trackerCount >= previous.trackerCount * SURGE_RATIO;
-
-  if (diff.addedTrackers.length === 0 && !surged) return null;
+  if (!isTrackerSurge(previous.trackerCount, next.trackerCount)) return null;
 
   const alert: AlertRow = {
     siteId: next.siteId,
@@ -47,7 +48,7 @@ export async function recordScanAlert(
     fromScanId: previous.id,
     toScanId: next.id,
     timestamp: next.timestamp,
-    kind: diff.addedTrackers.length > 0 ? "new-trackers" : "tracker-surge",
+    kind: previous.trackerCount === 0 ? "new-trackers" : "tracker-surge",
     addedTrackers: diff.addedTrackers.map((node) => node.domain),
     removedTrackers: diff.removedTrackers.map((node) => node.domain),
     trackerDelta: delta,
@@ -63,14 +64,8 @@ export async function recordScanAlert(
   return stored;
 }
 
-export async function syncAlertBadge(count?: number): Promise<void> {
-  if (typeof browser === "undefined" || !browser.action?.setBadgeText) return;
-  const unread = count ?? (await unreadAlertCount());
-  const text = unread > 0 ? (unread > 9 ? "9+" : String(unread)) : "";
-  await browser.action.setBadgeText({ text });
-  if (unread > 0 && browser.action.setBadgeBackgroundColor) {
-    await browser.action.setBadgeBackgroundColor({ color: "#b91c1c" });
-  }
+export async function syncAlertBadge(_count?: number): Promise<void> {
+  // Toolbar badge is owned by applyBadgeForUrl — unread alerts live in the dashboard.
 }
 
 export async function notifyFirstSiteCheck(input: {

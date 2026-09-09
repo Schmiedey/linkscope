@@ -1,13 +1,83 @@
 import type { ConnectionType, RawFinding, RawScanPayload } from "@/src/types/graph";
 
-const MAX_FINDINGS = 2500;
+const MAX_FINDINGS = 4000;
+const RESOURCE_BUFFER_SIZE = 10_000;
+
+type WatchState = {
+  extras: RawFinding[];
+  seen: Set<string>;
+  observer: PerformanceObserver | null;
+};
+
+function getWatchState(): WatchState {
+  const scope = globalThis as typeof globalThis & { __LINKSCOPE_WATCH__?: WatchState };
+  if (!scope.__LINKSCOPE_WATCH__) {
+    scope.__LINKSCOPE_WATCH__ = { extras: [], seen: new Set(), observer: null };
+  }
+  return scope.__LINKSCOPE_WATCH__;
+}
+
+function typeFromInitiator(initiator: string): ConnectionType {
+  if (initiator === "script") return "script";
+  if (initiator === "img" || initiator === "image") return "image";
+  if (initiator === "css" || initiator === "link") return "stylesheet";
+  if (initiator === "iframe") return "iframe";
+  if (initiator === "video" || initiator === "audio") return "media";
+  return "network";
+}
+
+function recordResourceEntry(entry: PerformanceResourceTiming): void {
+  const state = getWatchState();
+  const url = entry.name;
+  if (!url || state.seen.has(url) || state.extras.length >= MAX_FINDINGS) return;
+  state.seen.add(url);
+  const type = typeFromInitiator(entry.initiatorType || "other");
+  state.extras.push({
+    type,
+    url,
+    snippet: `performance:${entry.initiatorType || "other"} ${url.slice(0, 256)}`,
+  });
+}
 
 /**
- * Injected into the active tab. Must stay self-contained — Chrome serializes
- * this function body and cannot close over imports.
+ * Expand Chrome's Resource Timing buffer and keep a PerformanceObserver on
+ * `globalThis` so later `executeScript` injections reuse it instead of resetting.
+ * Must run at document_start when possible — the default buffer (~250) silently
+ * drops further entries on heavy pages.
  */
+export function ensureResourceWatch(): void {
+  try {
+    performance.setResourceTimingBufferSize(RESOURCE_BUFFER_SIZE);
+  } catch {
+    // Some pages restrict Performance Timeline writes.
+  }
+
+  const state = getWatchState();
+  if (state.observer) return;
+
+  const supported =
+    typeof PerformanceObserver !== "undefined" &&
+    (!PerformanceObserver.supportedEntryTypes ||
+      PerformanceObserver.supportedEntryTypes.includes("resource"));
+  if (!supported) return;
+
+  try {
+    state.observer = new PerformanceObserver((list) => {
+      for (const entry of list.getEntries() as PerformanceResourceTiming[]) {
+        recordResourceEntry(entry);
+      }
+    });
+    state.observer.observe({ type: "resource", buffered: true });
+  } catch {
+    state.observer = null;
+  }
+}
+
+/** DOM + Resource Timing snapshot. Bundled into page-scanner.js, not serialized. */
 export function collectPageFindings(): RawScanPayload {
-  const MAX = 2500;
+  ensureResourceWatch();
+
+  const MAX = MAX_FINDINGS;
   const SNIPPET = 280;
 
   const types = [
@@ -164,60 +234,16 @@ export function collectPageFindings(): RawScanPayload {
   };
 }
 
-type WatchBucket = {
-  extras: RawFinding[];
-  seen: Set<string>;
-};
-
-let watchBucket: WatchBucket | null = null;
-let watchObserver: PerformanceObserver | null = null;
-
-function typeFromInitiator(initiator: string): ConnectionType {
-  if (initiator === "script") return "script";
-  if (initiator === "img" || initiator === "image") return "image";
-  if (initiator === "css" || initiator === "link") return "stylesheet";
-  if (initiator === "iframe") return "iframe";
-  if (initiator === "video" || initiator === "audio") return "media";
-  return "network";
-}
-
 export function installLinkScopeCollector(): RawScanPayload {
-  if (!watchBucket) {
-    watchBucket = { extras: [], seen: new Set() };
-  }
-
-  if (!watchObserver) {
-    try {
-      watchObserver = new PerformanceObserver((list) => {
-        const bucket = watchBucket;
-        if (!bucket) return;
-        for (const entry of list.getEntries() as PerformanceResourceTiming[]) {
-          const url = entry.name;
-          if (!url || bucket.seen.has(url)) continue;
-          bucket.seen.add(url);
-          const type = typeFromInitiator(entry.initiatorType || "other");
-          bucket.extras.push({
-            type,
-            url,
-            snippet: `performance:${entry.initiatorType || "other"} ${url.slice(0, 256)}`,
-          });
-        }
-      });
-      watchObserver.observe({ type: "resource", buffered: true });
-    } catch {
-      watchObserver = null;
-    }
-  }
+  ensureResourceWatch();
 
   const snap = collectPageFindings();
   const seen = new Set(snap.findings.map((item) => `${item.type}|${item.url}`));
-  if (watchBucket) {
-    for (const extra of watchBucket.extras) {
-      const key = `${extra.type}|${extra.url}`;
-      if (seen.has(key) || snap.findings.length >= MAX_FINDINGS) continue;
-      seen.add(key);
-      snap.findings.push(extra);
-    }
+  for (const extra of getWatchState().extras) {
+    const key = `${extra.type}|${extra.url}`;
+    if (seen.has(key) || snap.findings.length >= MAX_FINDINGS) continue;
+    seen.add(key);
+    snap.findings.push(extra);
   }
 
   const scope = globalThis as typeof globalThis & { __LINKSCOPE_SCAN__?: RawScanPayload };

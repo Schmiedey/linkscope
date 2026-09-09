@@ -1,5 +1,6 @@
 import { Copy, ExternalLink, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { OwnerGroups } from "@/src/components/OwnerGroups";
@@ -132,30 +133,37 @@ export function NodeInspector({ snapshot }: { snapshot: ScanGraphSnapshot }) {
           </div>
         </section>
       </div>
-      <div className="flex shrink-0 gap-2 border-t border-line p-3">
-        <Button
-          variant={followed ? "subtle" : "ghost"}
-          size="sm"
-          className="flex-1"
-          onClick={() => {
-            void toggleFollowDomain(node.domain).then(setFollowed);
-          }}
-        >
-          {followed ? "Following" : "Follow"}
-        </Button>
-        <Button variant="ghost" size="sm" className="flex-1" onClick={() => void copy()}>
-          <Copy className="h-3 w-3" />
-          {copied ? "Copied" : "Copy"}
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="flex-1"
-          onClick={() => window.open(`https://${node.domain}`, "_blank", "noopener,noreferrer")}
-        >
-          <ExternalLink className="h-3 w-3" />
-          Open
-        </Button>
+      <div className="flex shrink-0 flex-col gap-2 border-t border-line p-3">
+        <div className="flex gap-2">
+          <Button
+            variant={followed ? "subtle" : "ghost"}
+            size="sm"
+            className="flex-1"
+            onClick={() => {
+              void toggleFollowDomain(node.domain).then(setFollowed);
+            }}
+          >
+            {followed ? "Following" : "Follow"}
+          </Button>
+          <Button variant="ghost" size="sm" className="flex-1" onClick={() => void copy()}>
+            <Copy className="h-3 w-3" />
+            {copied ? "Copied" : "Copy"}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex-1"
+            onClick={() => window.open(`https://${node.domain}`, "_blank", "noopener,noreferrer")}
+          >
+            <ExternalLink className="h-3 w-3" />
+            Open
+          </Button>
+        </div>
+        {followed ? (
+          <Link to="/following" className="text-center text-[12px] text-mute hover:text-ink">
+            View on Following
+          </Link>
+        ) : null}
       </div>
     </aside>
   );

@@ -54,9 +54,14 @@ export function DomainIdentityCard({
       </dl>
       {chain ? <WhyChain chain={chain} /> : <p className="text-[13px] text-mute">{identity.usedFor}</p>}
       {onFollow ? (
-        <Button variant={followed ? "subtle" : "ghost"} size="sm" className="w-full" onClick={onFollow}>
-          {followed ? "Following" : "Follow this domain"}
-        </Button>
+        <div className="space-y-1.5">
+          <Button variant={followed ? "subtle" : "ghost"} size="sm" className="w-full" onClick={onFollow}>
+            {followed ? "Following" : "Follow this domain"}
+          </Button>
+          {followed ? (
+            <p className="text-[12px] text-mute">Listed under Following in the dashboard.</p>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );

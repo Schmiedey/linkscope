@@ -1,4 +1,4 @@
-import { Globe2, History, LayoutDashboard, Network, Settings, Waypoints } from "lucide-react";
+import { Globe2, History, LayoutDashboard, Network, Settings, Star, Waypoints } from "lucide-react";
 import { useEffect } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { cn } from "@/src/lib/utils";
@@ -10,6 +10,7 @@ const NAV = [
   { to: "/scans", label: "Scans", icon: History },
   { to: "/sites", label: "Sites", icon: Globe2 },
   { to: "/domains", label: "Domains", icon: Waypoints },
+  { to: "/following", label: "Following", icon: Star },
   { to: "/global", label: "Global graph", icon: Network },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
@@ -53,10 +54,6 @@ export function AppShell() {
           ))}
         </nav>
         <p className="px-5 py-4 text-[12px] leading-relaxed text-mute">
-          <NavLink to="/following" className="hover:text-ink">
-            Following
-          </NavLink>
-          <span className="mx-1.5 text-line">·</span>
           Local only. Nothing is uploaded.
         </p>
       </aside>

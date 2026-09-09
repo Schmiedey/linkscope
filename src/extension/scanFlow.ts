@@ -12,6 +12,7 @@ export type ScanRunOptions = PersistScanOptions & {
   tabId?: number;
   url?: string;
   notifyIfNew?: boolean;
+  force?: boolean;
 };
 
 const QUIET_SCAN_TTL_MS = 45_000;
@@ -117,7 +118,7 @@ export async function scanActiveTab(options: ScanRunOptions = {}): Promise<numbe
       ? { id: options.tabId, url: options.url }
       : await resolveTargetTab();
   const openReport = options.openReport !== false;
-  if (!openReport) {
+  if (!openReport && !options.force) {
     const recent = await recentQuietScanId(tab.url);
     if (recent !== null) return recent;
   }

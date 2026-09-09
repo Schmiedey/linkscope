@@ -224,6 +224,18 @@ export function GraphViewer({
               >
                 {menu.followed ? "Unfollow" : "Follow in LinkScope"}
               </button>
+              {menu.followed ? (
+                <button
+                  type="button"
+                  className="block w-full px-3 py-1.5 text-left text-[12px] hover:bg-raised"
+                  onClick={() => {
+                    navigate("/following");
+                    setMenu(null);
+                  }}
+                >
+                  Open Following
+                </button>
+              ) : null}
             </div>
           ) : null}
         </div>
