@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { Core } from "cytoscape";
-import { defaultEnabledTypes } from "@/src/graph/filters";
+import { defaultEnabledTypes, type CategoryLens } from "@/src/graph/filters";
 import { GRAPH_LAYOUT_MODES, type GraphLayoutMode } from "@/src/graph/layouts";
 import type { ConnectionType } from "@/src/types/graph";
 
@@ -13,6 +13,9 @@ type GraphUiState = {
   thirdPartyOnly: boolean;
   hideCommonInfra: boolean;
   hideFirstParty: boolean;
+  categoryLens: CategoryLens;
+  hiddenDomains: string[];
+  newDomains: string[];
   layoutMode: GraphLayoutMode;
   layoutNonce: number;
   cy: Core | null;
@@ -24,6 +27,9 @@ type GraphUiState = {
   setThirdPartyOnly: (value: boolean) => void;
   setHideCommonInfra: (value: boolean) => void;
   setHideFirstParty: (value: boolean) => void;
+  setCategoryLens: (lens: CategoryLens) => void;
+  hideNode: (id: string) => void;
+  setNewDomains: (domains: string[]) => void;
   setLayoutMode: (mode: GraphLayoutMode) => void;
   resetFilters: () => void;
   resetLayout: () => void;
@@ -39,6 +45,9 @@ export const useGraphStore = create<GraphUiState>((set) => ({
   thirdPartyOnly: false,
   hideCommonInfra: false,
   hideFirstParty: true,
+  categoryLens: "all",
+  hiddenDomains: [],
+  newDomains: [],
   layoutMode: GRAPH_LAYOUT_MODES[0],
   layoutNonce: 0,
   cy: null,
@@ -53,12 +62,31 @@ export const useGraphStore = create<GraphUiState>((set) => ({
   setThirdPartyOnly: (value) => set({ thirdPartyOnly: value }),
   setHideCommonInfra: (value) => set({ hideCommonInfra: value }),
   setHideFirstParty: (value) => set({ hideFirstParty: value }),
-  setLayoutMode: (mode) =>
+  setCategoryLens: (lens) => set({ categoryLens: lens, selectedNode: null }),
+  hideNode: (id) =>
     set((state) => ({
-      layoutMode: mode,
-      layoutNonce: state.layoutNonce + 1,
-      selectedNode: null,
+      hiddenDomains: state.hiddenDomains.includes(id) ? state.hiddenDomains : [...state.hiddenDomains, id],
+      selectedNode: state.selectedNode === id ? null : state.selectedNode,
     })),
+  setNewDomains: (domains) =>
+    set((state) => {
+      if (
+        state.newDomains.length === domains.length &&
+        state.newDomains.every((domain, index) => domain === domains[index])
+      ) {
+        return state;
+      }
+      return { newDomains: domains };
+    }),
+  setLayoutMode: (mode) =>
+    set((state) => {
+      if (state.layoutMode === mode) return state;
+      return {
+        layoutMode: mode,
+        layoutNonce: state.layoutNonce + 1,
+        selectedNode: null,
+      };
+    }),
   resetFilters: () =>
     set({
       enabledTypes: defaultEnabledTypes(),
@@ -66,8 +94,11 @@ export const useGraphStore = create<GraphUiState>((set) => ({
       thirdPartyOnly: false,
       hideCommonInfra: false,
       hideFirstParty: true,
+      categoryLens: "all",
+      hiddenDomains: [],
       selectedNode: null,
     }),
   resetLayout: () => set((state) => ({ layoutNonce: state.layoutNonce + 1 })),
-  setCy: (cy) => set({ cy }),
+  setCy: (cy) =>
+    set((state) => (state.cy === cy ? state : { cy })),
 }));

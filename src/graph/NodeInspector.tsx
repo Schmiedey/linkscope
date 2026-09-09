@@ -1,18 +1,26 @@
 import { Copy, ExternalLink, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { OwnerGroups } from "@/src/components/OwnerGroups";
+import { WhyChain } from "@/src/components/WhyChain";
 import { useGraphStore } from "@/src/graph/useGraphStore";
-import { isTrackerCategory } from "@/src/analysis/categorizer";
+import { identifyDomain, riskLabel, seenOnShare } from "@/src/analysis/identity";
 import { groupSnapshotByOwner, siblingsFromOwner } from "@/src/analysis/owners";
-import { isFirstPartyDomain } from "@/src/analysis/firstParty";
-import { CATEGORY_LABELS, CONNECTION_TYPE_LABELS, type ScanGraphSnapshot } from "@/src/types/graph";
+import { loadChainFor } from "@/src/analysis/why";
+import { formatShortDate } from "@/src/lib/utils";
+import { getDomain } from "@/src/storage/domains";
+import { isFollowedDomain, toggleFollowDomain } from "@/src/storage/follows";
+import { listSites } from "@/src/storage/scans";
+import { CONNECTION_TYPE_LABELS, type DomainRow, type ScanGraphSnapshot } from "@/src/types/graph";
 
 export function NodeInspector({ snapshot }: { snapshot: ScanGraphSnapshot }) {
   const selectedNode = useGraphStore((state) => state.selectedNode);
   const selectNode = useGraphStore((state) => state.selectNode);
   const [copied, setCopied] = useState(false);
+  const [followed, setFollowed] = useState(false);
+  const [row, setRow] = useState<DomainRow | undefined>(undefined);
+  const [siteCount, setSiteCount] = useState(0);
   const owners = useMemo(() => groupSnapshotByOwner(snapshot), [snapshot]);
 
   const node = snapshot.nodes.find((item) => item.domain === selectedNode);
@@ -21,6 +29,13 @@ export function NodeInspector({ snapshot }: { snapshot: ScanGraphSnapshot }) {
     return snapshot.edges.filter((edge) => edge.source === selectedNode || edge.target === selectedNode);
   }, [selectedNode, snapshot.edges]);
   const siblings = selectedNode ? siblingsFromOwner(snapshot, selectedNode) : [];
+
+  useEffect(() => {
+    if (!selectedNode) return;
+    void isFollowedDomain(selectedNode).then(setFollowed);
+    void getDomain(selectedNode).then(setRow);
+    void listSites().then((sites) => setSiteCount(sites.length));
+  }, [selectedNode]);
 
   if (!selectedNode || !node) {
     return (
@@ -36,17 +51,6 @@ export function NodeInspector({ snapshot }: { snapshot: ScanGraphSnapshot }) {
     );
   }
 
-  const firstParty = node.isFirstParty || isFirstPartyDomain(snapshot.originDomain, node.domain);
-  const relationship = node.isOrigin
-    ? "Current website"
-    : firstParty
-      ? "First-party asset"
-      : isTrackerCategory(node.category)
-        ? `Tracker · ${CONNECTION_TYPE_LABELS[edges[0]?.type ?? "other"].toLowerCase()}`
-        : edges[0]
-          ? `Third-party ${CONNECTION_TYPE_LABELS[edges[0].type].toLowerCase()}`
-          : "Connected domain";
-
   const evidence = edges.flatMap((edge) => edge.evidence).slice(0, 12);
 
   const copy = async (): Promise<void> => {
@@ -59,11 +63,8 @@ export function NodeInspector({ snapshot }: { snapshot: ScanGraphSnapshot }) {
     <aside className="flex h-full w-[min(340px,40vw)] shrink-0 flex-col overflow-hidden border-l border-line bg-panel">
       <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
         <div className="min-w-0">
-          <p className="truncate text-[15px] font-medium text-ink">{node.domain}</p>
-          <p className="mt-0.5 text-[12px] text-mute">
-            {CATEGORY_LABELS[node.category]}
-            {node.owner ? ` · ${node.owner}` : ""}
-          </p>
+          <p className="truncate text-[15px] font-medium text-ink">{identifyDomain(node.domain).name}</p>
+          <p className="mt-0.5 truncate text-[12px] text-mute">{node.domain}</p>
         </div>
         <button type="button" onClick={() => selectNode(null)} className="shrink-0 text-mute hover:text-ink">
           <X className="h-4 w-4" />
@@ -71,24 +72,15 @@ export function NodeInspector({ snapshot }: { snapshot: ScanGraphSnapshot }) {
       </div>
       <div className="min-h-0 flex-1 space-y-5 overflow-auto px-4 py-4">
         <div className="grid grid-cols-2 gap-3 text-[12px]">
-          <Stat label="Seen" value={`${String(node.referenceCount)} refs`} />
-          <Stat label="Relationship" value={relationship} />
-          <Stat label="Found on" value={snapshot.originDomain === "global" ? "Multiple sites" : snapshot.originDomain} />
+          <Stat label="Type" value={identifyDomain(node.domain).typeLabel} />
+          <Stat label="Owned by" value={node.owner ?? "Unlisted"} />
           <Stat
-            label="Notes"
-            value={
-              node.isOrigin
-                ? "The page you scanned"
-                : firstParty
-                  ? "Belongs to this site’s own stack"
-                  : node.listed
-                    ? node.owner
-                      ? `Disconnect list · ${node.owner}`
-                      : "On Disconnect Tracking Protection"
-                    : isTrackerCategory(node.category)
-                      ? "Classified from LinkScope’s seed list"
-                      : "Not on the bundled tracker list"
-            }
+            label="Found on"
+            value={row ? seenOnShare(row.seenOnCount, siteCount || 1) : snapshot.originDomain}
+          />
+          <Stat
+            label="Risk"
+            value={`${riskLabel(identifyDomain(node.domain).risk)}${row ? ` · first ${formatShortDate(row.firstSeen)}` : ""}`}
           />
         </div>
         <section>
@@ -119,8 +111,9 @@ export function NodeInspector({ snapshot }: { snapshot: ScanGraphSnapshot }) {
             </ul>
           </section>
         ) : null}
+        <WhyChain chain={loadChainFor(snapshot, node.domain)} onSelect={(domain) => selectNode(domain)} />
         <section>
-          <h3 className="mb-2 text-[12px] text-mute">Why is this here?</h3>
+          <h3 className="mb-2 text-[12px] text-mute">Evidence</h3>
           <div className="space-y-3">
             {evidence.length === 0 ? (
               <p className="text-[13px] text-mute">No evidence snippets stored for this node.</p>
@@ -140,6 +133,16 @@ export function NodeInspector({ snapshot }: { snapshot: ScanGraphSnapshot }) {
         </section>
       </div>
       <div className="flex shrink-0 gap-2 border-t border-line p-3">
+        <Button
+          variant={followed ? "subtle" : "ghost"}
+          size="sm"
+          className="flex-1"
+          onClick={() => {
+            void toggleFollowDomain(node.domain).then(setFollowed);
+          }}
+        >
+          {followed ? "Following" : "Follow"}
+        </Button>
         <Button variant="ghost" size="sm" className="flex-1" onClick={() => void copy()}>
           <Copy className="h-3 w-3" />
           {copied ? "Copied" : "Copy"}

@@ -73,6 +73,34 @@ export async function syncAlertBadge(count?: number): Promise<void> {
   }
 }
 
+export async function notifyFirstSiteCheck(input: {
+  domain: string;
+  scanId: number;
+  thirdPartyCount: number;
+  trackerCount: number;
+}): Promise<void> {
+  if (typeof browser === "undefined" || !browser.notifications?.create) return;
+  if (!(await notificationsEnabled())) return;
+  const parties =
+    input.thirdPartyCount === 1 ? "1 third-party domain" : `${String(input.thirdPartyCount)} third-party domains`;
+  const trackers =
+    input.trackerCount === 0
+      ? "no trackers"
+      : input.trackerCount === 1
+        ? "1 tracker"
+        : `${String(input.trackerCount)} trackers`;
+  try {
+    await browser.notifications.create(`linkscope-first-${String(input.scanId)}`, {
+      type: "basic",
+      iconUrl: notificationIconUrl(),
+      title: input.domain,
+      message: `First check · ${parties} · ${trackers}`,
+    });
+  } catch {
+    // Notifications can be blocked even with the permission present.
+  }
+}
+
 async function notifyChange(alert: AlertRow, fromCount: number, toCount: number): Promise<void> {
   if (typeof browser === "undefined" || !browser.notifications?.create) return;
   const added = alert.addedTrackers;

@@ -1,13 +1,17 @@
 import { Link, useParams } from "react-router-dom";
 import { useMemo, useState } from "react";
 import { groupSnapshotByOwner } from "@/src/analysis/owners";
+import { nutritionFromScan } from "@/src/analysis/nutrition";
+import { concludeSite, mixSentence } from "@/src/analysis/unusual";
 import { scoreFromScan, scoreSnapshot } from "@/src/analysis/score";
+import { NutritionLabel } from "@/src/components/NutritionLabel";
 import { OwnerGroups } from "@/src/components/OwnerGroups";
 import { PrivacyScoreMark } from "@/src/components/PrivacyScoreMark";
 import { ScanTimeline } from "@/src/components/ScanTimeline";
 import { Badge } from "@/src/components/ui/badge";
 import { formatCount, formatRelativeTime } from "@/src/lib/utils";
 import { useAsync } from "@/src/lib/useAsync";
+import { domainRowsForSnapshot } from "@/src/storage/glance";
 import { getScanGraph, getSite, listScansForSite } from "@/src/storage/scans";
 
 export function SiteDetailPage() {
@@ -24,6 +28,15 @@ export function SiteDetailPage() {
   const latestGraph = useAsync(() => (latest?.id !== undefined ? getScanGraph(latest.id) : Promise.resolve(undefined)), [
     latest?.id,
   ]);
+  const domainRows = useAsync(
+    () => domainRowsForSnapshot(latestGraph.data),
+    [latestGraph.data?.scanId],
+  );
+  const nutrition = latest ? nutritionFromScan(latest, latestGraph.data) : null;
+  const conclusion =
+    nutrition && latestGraph.data
+      ? concludeSite({ nutrition, snapshot: latestGraph.data, domainRows: domainRows.data })
+      : null;
   const scored = latestGraph.data
     ? scoreSnapshot(latestGraph.data)
     : latest
@@ -60,14 +73,33 @@ export function SiteDetailPage() {
       </p>
 
       {scored ? (
-        <section className="mt-8 grid gap-8 lg:grid-cols-[200px_minmax(0,1fr)]">
-          <PrivacyScoreMark score={scored.score} grade={scored.grade} />
+        <section className="mt-8 grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)]">
           <div>
-            <ul className="space-y-1 text-[14px] text-ink">
-              {scored.reasons.map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
+            <PrivacyScoreMark score={scored.score} grade={scored.grade} />
+            {nutrition ? <div className="mt-6 max-w-[220px]"><NutritionLabel nutrition={nutrition} compact /></div> : null}
+          </div>
+          <div>
+            {conclusion ? (
+              <>
+                <p className="text-[18px] text-ink">{conclusion.headline}</p>
+                <p className="mt-2 text-[14px] text-mute">{conclusion.detail}</p>
+                <p className="mt-1 text-[14px] text-mute">{mixSentence(conclusion.mixLabels)}</p>
+              </>
+            ) : (
+              <ul className="space-y-1 text-[14px] text-ink">
+                {scored.reasons.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            )}
+            {latest?.id !== undefined ? (
+              <Link
+                to={`/graph/${String(latest.id)}`}
+                className="mt-5 inline-flex h-9 items-center rounded-md bg-ink px-3.5 text-[13px] font-medium text-canvas hover:bg-ink/90"
+              >
+                Inspect graph
+              </Link>
+            ) : null}
             <div className="mt-5">
               <ScanTimeline scans={ordered} />
             </div>

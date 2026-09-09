@@ -1,11 +1,15 @@
 import { Link, useParams } from "react-router-dom";
 import { useMemo, useState } from "react";
 import { describeDomain, isTrackerCategory } from "@/src/analysis/categorizer";
+import { identifyDomain, riskLabel, seenOnShare } from "@/src/analysis/identity";
 import { Badge } from "@/src/components/ui/badge";
+import { Button } from "@/src/components/ui/button";
 import { FilterChip, SearchInput } from "@/src/components/SearchControls";
-import { formatCount, formatRelativeTime } from "@/src/lib/utils";
+import { formatCount, formatRelativeTime, formatShortDate } from "@/src/lib/utils";
 import { useAsync } from "@/src/lib/useAsync";
 import { getDomain, listDomains, listSightingsForDomain } from "@/src/storage/domains";
+import { isFollowedDomain, toggleFollowDomain } from "@/src/storage/follows";
+import { listSites } from "@/src/storage/scans";
 import { CATEGORY_LABELS, type DomainCategory } from "@/src/types/graph";
 
 type Bucket = "all" | "trackers" | "unknown" | DomainCategory;
@@ -126,8 +130,10 @@ export function DomainDetailPage() {
   const domain = params.domain ? decodeURIComponent(params.domain) : "";
   const row = useAsync(() => getDomain(domain), [domain]);
   const sightings = useAsync(() => listSightingsForDomain(domain), [domain]);
+  const followed = useAsync(() => isFollowedDomain(domain), [domain]);
+  const sites = useAsync(() => listSites(), []);
   const now = Date.now();
-  const listed = describeDomain(domain);
+  const identity = identifyDomain(domain);
 
   if (!row.loading && !row.data) {
     return (
@@ -147,16 +153,34 @@ export function DomainDetailPage() {
       <Link to="/domains" className="text-[13px] text-mute hover:text-ink">
         Domains
       </Link>
-      <h1 className="font-display mt-2 text-4xl">{domain}</h1>
+      <h1 className="font-display mt-2 text-4xl">{identity.name}</h1>
+      <p className="mt-1 break-all text-[14px] text-mute">{domain}</p>
       {data ? (
         <div className="mt-6 grid max-w-xl grid-cols-2 gap-4">
-          <Meta label="Seen on" value={`${formatCount(data.seenOnCount)} websites`} />
-          <Meta label="Category" value={CATEGORY_LABELS[data.category]} />
-          <Meta label="Owner" value={listed.owner ?? "Unlisted"} />
-          <Meta label="First seen" value={formatRelativeTime(data.firstSeen, now)} />
+          <Meta label="Type" value={identity.typeLabel} />
+          <Meta label="Owned by" value={identity.owner ?? "Unlisted"} />
+          <Meta
+            label="Found on"
+            value={seenOnShare(data.seenOnCount, sites.data?.length ?? data.seenOnCount)}
+          />
+          <Meta label="First seen" value={formatShortDate(data.firstSeen)} />
+          <Meta label="Risk" value={riskLabel(identity.risk)} />
+          <Meta label="Last seen" value={formatRelativeTime(data.lastSeen, now)} />
         </div>
       ) : null}
-      <h2 className="font-display mt-10 mb-3 text-2xl">Sites containing this domain</h2>
+      <p className="mt-4 max-w-xl text-[14px] text-ink">{identity.usedFor}</p>
+      <div className="mt-4">
+        <Button
+          variant={followed.data ? "subtle" : "ghost"}
+          size="sm"
+          onClick={() => {
+            void toggleFollowDomain(domain).then(() => followed.reload());
+          }}
+        >
+          {followed.data ? "Following" : "Follow in LinkScope"}
+        </Button>
+      </div>
+      <h2 className="font-display mt-10 mb-3 text-2xl">Appeared on</h2>
       <div className="divide-y divide-line border-y border-line">
         {sightings.data?.map((item) => (
           <div key={`${item.siteDomain}-${String(item.id)}`} className="flex items-center justify-between py-3">

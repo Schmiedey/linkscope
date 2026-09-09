@@ -2,6 +2,7 @@ import { HashRouter, Route, Routes } from "react-router-dom";
 import { AppShell } from "@/src/components/AppShell";
 import { DiffPage } from "@/src/dashboard/DiffPage";
 import { DomainDetailPage, DomainsPage } from "@/src/dashboard/Domains";
+import { FollowingPage } from "@/src/dashboard/Following";
 import { GlobalGraphPage } from "@/src/dashboard/GlobalGraph";
 import { GraphPage } from "@/src/dashboard/GraphPage";
 import { OverviewPage } from "@/src/dashboard/Overview";
@@ -26,6 +27,7 @@ export function App() {
           <Route path="/diff/:fromId/:toId" element={<DiffPage />} />
           <Route path="/domains" element={<DomainsPage />} />
           <Route path="/domains/:domain" element={<DomainDetailPage />} />
+          <Route path="/following" element={<FollowingPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>
       </Routes>

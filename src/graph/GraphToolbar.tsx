@@ -7,6 +7,7 @@ import {
   type GraphLayoutMode,
 } from "@/src/graph/layouts";
 import { useGraphStore } from "@/src/graph/useGraphStore";
+import type { CategoryLens } from "@/src/graph/filters";
 import { CONNECTION_TYPE_LABELS, type ConnectionType } from "@/src/types/graph";
 import { cn } from "@/src/lib/utils";
 
@@ -19,6 +20,17 @@ const FILTER_TYPES: ConnectionType[] = [
   "font",
   "media",
   "link",
+];
+
+const LENSES: { id: CategoryLens; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "trackers", label: "Trackers" },
+  { id: "advertising", label: "Ads" },
+  { id: "analytics", label: "Analytics" },
+  { id: "cdn", label: "CDNs" },
+  { id: "social", label: "Social" },
+  { id: "unknown", label: "Unknown" },
+  { id: "new", label: "New" },
 ];
 
 const LAYOUT_ICONS: Record<GraphLayoutMode, typeof Orbit> = {
@@ -38,6 +50,8 @@ export function GraphToolbar({ extras }: { extras?: ReactNode }) {
   const setHideCommonInfra = useGraphStore((state) => state.setHideCommonInfra);
   const hideFirstParty = useGraphStore((state) => state.hideFirstParty);
   const setHideFirstParty = useGraphStore((state) => state.setHideFirstParty);
+  const categoryLens = useGraphStore((state) => state.categoryLens);
+  const setCategoryLens = useGraphStore((state) => state.setCategoryLens);
   const layoutMode = useGraphStore((state) => state.layoutMode);
   const setLayoutMode = useGraphStore((state) => state.setLayoutMode);
   const resetLayout = useGraphStore((state) => state.resetLayout);
@@ -46,6 +60,21 @@ export function GraphToolbar({ extras }: { extras?: ReactNode }) {
   return (
     <div className="z-20 shrink-0 border-t border-line bg-canvas px-6 py-3">
       <div className="flex flex-col gap-2.5">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {LENSES.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setCategoryLens(item.id)}
+              className={cn(
+                "rounded-md px-2 py-1 text-[12px]",
+                categoryLens === item.id ? "bg-ink text-canvas" : "text-mute hover:text-ink",
+              )}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
         <div className="flex flex-wrap items-center gap-1.5">
           {FILTER_TYPES.map((type) => {
             const on = enabledTypes[type];

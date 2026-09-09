@@ -35,7 +35,9 @@ export function formatCount(value: number): string {
   return new Intl.NumberFormat("en-US").format(value);
 }
 
-export function truncate(value: string, max = 80): string {
-  if (value.length <= max) return value;
-  return `${value.slice(0, max - 1)}…`;
+export function formatShortDate(timestamp: number): string {
+  return new Date(timestamp).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
 }

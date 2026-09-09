@@ -1,16 +1,37 @@
+import { useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { GraphViewer } from "@/src/graph/GraphViewer";
-import { useAsync } from "@/src/lib/useAsync";
-import { getScan, getScanGraph } from "@/src/storage/scans";
-import { thirdPartyCountOf, trackerCountOf } from "@/src/analysis/enrich";
+import { enrichSnapshot, thirdPartyCountOf, trackerCountOf } from "@/src/analysis/enrich";
 import { scoreFromScan } from "@/src/analysis/score";
+import { GraphViewer } from "@/src/graph/GraphViewer";
 import { formatCount } from "@/src/lib/utils";
+import { useAsync } from "@/src/lib/useAsync";
+import { getScan, getScanGraph, listScansForSite } from "@/src/storage/scans";
 
 export function GraphPage() {
   const params = useParams();
   const scanId = Number(params.scanId);
   const scan = useAsync(() => getScan(scanId), [scanId]);
   const graph = useAsync(() => getScanGraph(scanId), [scanId]);
+  const previousGraph = useAsync(async () => {
+    const current = await getScan(scanId);
+    if (!current) return undefined;
+    const scans = [...(await listScansForSite(current.siteId))].sort((a, b) => b.timestamp - a.timestamp);
+    const prev = scans.find((item) => item.id !== current.id);
+    if (prev?.id === undefined) return undefined;
+    return await getScanGraph(prev.id);
+  }, [scanId]);
+
+  const newDomains = useMemo(() => {
+    if (!graph.data || !previousGraph.data) return [];
+    const prevIds = new Set(
+      enrichSnapshot(previousGraph.data)
+        .nodes.filter((node) => !node.isOrigin)
+        .map((node) => node.domain),
+    );
+    return enrichSnapshot(graph.data)
+      .nodes.filter((node) => !node.isOrigin && !prevIds.has(node.domain))
+      .map((node) => node.domain);
+  }, [graph.data, previousGraph.data]);
 
   if (!Number.isFinite(scanId)) {
     return <p className="p-8 text-mute">Invalid scan.</p>;
@@ -39,7 +60,8 @@ export function GraphPage() {
       scan={scan.data}
       title={scan.data.domain}
       subtitle={`Grade ${mark.grade} ${String(mark.score)} · ${formatCount(thirdPartyCountOf(snapshot))} third parties · ${formatCount(trackerCountOf(snapshot))} trackers${watchNote}`}
-      backTo="/"
+      backTo={`/sites/${String(scan.data.siteId)}`}
+      newDomains={newDomains}
     />
   );
 }

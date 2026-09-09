@@ -10,12 +10,25 @@ export function defaultEnabledTypes(): Record<ConnectionType, boolean> {
   return enabled;
 }
 
+export type CategoryLens =
+  | "all"
+  | "trackers"
+  | "advertising"
+  | "analytics"
+  | "cdn"
+  | "social"
+  | "unknown"
+  | "new";
+
 export type GraphFilterState = {
   enabledTypes: Record<ConnectionType, boolean>;
   thirdPartyOnly: boolean;
   hideCommonInfra: boolean;
   hideFirstParty: boolean;
   searchQuery: string;
+  categoryLens: CategoryLens;
+  hiddenDomains: string[];
+  newDomains: string[];
 };
 
 export function bestSearchMatch(
@@ -53,6 +66,7 @@ export function isNodeVisible(
   originDomain: string,
 ): boolean {
   if (node.isOrigin || node.isSite) return true;
+  if (filters.hiddenDomains.includes(node.domain)) return false;
   const firstParty = Boolean(node.isFirstParty) || isFirstPartyDomain(originDomain, node.domain);
   if (filters.hideFirstParty && firstParty) return false;
   if (filters.hideCommonInfra && INFRA_CATEGORIES.has(node.category as DomainCategory) && !firstParty) {
@@ -62,6 +76,15 @@ export function isNodeVisible(
     return false;
   }
   if (filters.thirdPartyOnly && firstParty) return false;
+  if (filters.categoryLens === "trackers" && !TRACKER_CATEGORIES.has(node.category)) return false;
+  if (filters.categoryLens === "advertising" && node.category !== "advertising") return false;
+  if (filters.categoryLens === "analytics" && node.category !== "analytics" && node.category !== "telemetry") {
+    return false;
+  }
+  if (filters.categoryLens === "cdn" && !INFRA_CATEGORIES.has(node.category)) return false;
+  if (filters.categoryLens === "social" && node.category !== "social") return false;
+  if (filters.categoryLens === "unknown" && node.category !== "unknown") return false;
+  if (filters.categoryLens === "new" && !filters.newDomains.includes(node.domain)) return false;
   return edges.some(
     (edge) =>
       filters.enabledTypes[edge.type] && (edge.source === node.domain || edge.target === node.domain),

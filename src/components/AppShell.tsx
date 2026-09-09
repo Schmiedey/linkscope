@@ -52,7 +52,13 @@ export function AppShell() {
             </NavLink>
           ))}
         </nav>
-        <p className="px-5 py-4 text-[12px] leading-relaxed text-mute">Local only. Nothing is uploaded.</p>
+        <p className="px-5 py-4 text-[12px] leading-relaxed text-mute">
+          <NavLink to="/following" className="hover:text-ink">
+            Following
+          </NavLink>
+          <span className="mx-1.5 text-line">·</span>
+          Local only. Nothing is uploaded.
+        </p>
       </aside>
       <main className="min-w-0 flex-1">
         <Outlet />

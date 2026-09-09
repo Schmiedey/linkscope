@@ -1,7 +1,7 @@
 import cytoscape, { type Core, type Css, type ElementDefinition, type LayoutOptions } from "cytoscape";
 import fcose from "cytoscape-fcose";
-import { useEffect, useMemo, useRef } from "react";
-import { VIZ_CATEGORY_COLORS, VIZ_EDGE_COLORS } from "@/src/graph/colors";
+import { memo, useEffect, useMemo, useRef } from "react";
+import { EDGE_COLORS, VIZ_CATEGORY_COLORS } from "@/src/graph/colors";
 import { filterSnapshot, matchesSearch, neighborIds } from "@/src/graph/filters";
 import type { GraphLayoutMode } from "@/src/graph/layouts";
 import { buildTreeElements, isSyntheticTreeId, runTreeLayout, treePathIds, TREE_STYLESHEET } from "@/src/graph/treeLayout";
@@ -12,6 +12,9 @@ cytoscape.use(fcose);
 
 type Props = {
   snapshot: ScanGraphSnapshot;
+  onExplore?: (domain: string) => void;
+  onContextMenu?: (domain: string, x: number, y: number) => void;
+  onNodeTap?: (id: string, x: number, y: number) => void;
 };
 
 const NODE_STYLE: Css.Node = {
@@ -62,12 +65,10 @@ const STYLESHEET: cytoscape.StylesheetStyle[] = [
     style: {
       width: "data(width)",
       "line-color": "data(color)",
-      "target-arrow-color": "data(color)",
-      "target-arrow-shape": "triangle",
-      "arrow-scale": 0.7,
+      "target-arrow-shape": "none",
       "curve-style": "bezier",
-      "control-point-step-size": 24,
-      opacity: 0.85,
+      "control-point-step-size": 18,
+      opacity: 0.45,
       "overlay-opacity": 0,
     },
   },
@@ -112,8 +113,8 @@ function buildElements(snapshot: ScanGraphSnapshot, nodes: ScanGraphSnapshot["no
         id: edge.id,
         source: edge.source,
         target: edge.target,
-        color: VIZ_EDGE_COLORS[edge.type],
-        width: Math.min(5, 1.15 + Math.log2(edge.count + 1)),
+        color: EDGE_COLORS[edge.type],
+        width: Math.min(1.8, 0.7 + Math.log2(edge.count + 1) * 0.35),
       },
     }));
 
@@ -187,9 +188,15 @@ function applyFocus(cy: Core, selected: string | null, actives: string[], showLa
   });
 }
 
-export function GraphCanvas({ snapshot }: Props) {
+export const GraphCanvas = memo(function GraphCanvas({ snapshot, onExplore, onContextMenu, onNodeTap }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
+  const onExploreRef = useRef(onExplore);
+  const onContextMenuRef = useRef(onContextMenu);
+  const onNodeTapRef = useRef(onNodeTap);
+  onExploreRef.current = onExplore;
+  onContextMenuRef.current = onContextMenu;
+  onNodeTapRef.current = onNodeTap;
   const selectedNode = useGraphStore((state) => state.selectedNode);
   const enabledTypes = useGraphStore((state) => state.enabledTypes);
   const searchQuery = useGraphStore((state) => state.searchQuery);
@@ -197,9 +204,11 @@ export function GraphCanvas({ snapshot }: Props) {
   const thirdPartyOnly = useGraphStore((state) => state.thirdPartyOnly);
   const hideCommonInfra = useGraphStore((state) => state.hideCommonInfra);
   const hideFirstParty = useGraphStore((state) => state.hideFirstParty);
+  const categoryLens = useGraphStore((state) => state.categoryLens);
+  const hiddenDomains = useGraphStore((state) => state.hiddenDomains);
+  const newDomains = useGraphStore((state) => state.newDomains);
   const layoutMode = useGraphStore((state) => state.layoutMode);
   const layoutNonce = useGraphStore((state) => state.layoutNonce);
-  const selectNode = useGraphStore((state) => state.selectNode);
 
   const filtered = useMemo(
     () =>
@@ -212,13 +221,19 @@ export function GraphCanvas({ snapshot }: Props) {
           hideCommonInfra,
           hideFirstParty,
           searchQuery,
+          categoryLens,
+          hiddenDomains,
+          newDomains,
         },
         snapshot.originDomain,
       ),
     [
+      categoryLens,
       enabledTypes,
+      hiddenDomains,
       hideCommonInfra,
       hideFirstParty,
+      newDomains,
       searchQuery,
       snapshot.edges,
       snapshot.nodes,
@@ -232,8 +247,22 @@ export function GraphCanvas({ snapshot }: Props) {
       layoutMode === "tree"
         ? buildTreeElements(snapshot, filtered.nodes, filtered.edges)
         : buildElements(snapshot, filtered.nodes, filtered.edges),
-    [filtered.edges, filtered.nodes, layoutMode, snapshot],
+    [filtered.edges, filtered.nodes, layoutMode, snapshot.originDomain, snapshot.scanId],
   );
+
+  const elementsKey = useMemo(
+    () =>
+      [
+        snapshot.scanId,
+        layoutMode,
+        filtered.nodes.map((node) => node.domain).join("\0"),
+        filtered.edges.map((edge) => edge.id).join("\0"),
+      ].join("|"),
+    [filtered.edges, filtered.nodes, layoutMode, snapshot.scanId],
+  );
+
+  const elementsRef = useRef(elements);
+  elementsRef.current = elements;
 
   const actives = useMemo(() => {
     if (layoutMode === "tree" && selectedNode) {
@@ -251,7 +280,7 @@ export function GraphCanvas({ snapshot }: Props) {
 
     const cy = cytoscape({
       container,
-      elements,
+      elements: [],
       style: layoutMode === "tree" ? TREE_STYLESHEET : STYLESHEET,
       minZoom: 0.18,
       maxZoom: 3.6,
@@ -262,13 +291,70 @@ export function GraphCanvas({ snapshot }: Props) {
     useGraphStore.getState().setCy(cy);
     cy.on("tap", "node", (event) => {
       const id = event.target.id() as string;
-      if (isSyntheticTreeId(id) || event.target.hasClass("tree-group")) return;
+      if (id === "__tree-root") return;
+      const rendered = event.renderedPosition;
+      const original = event.originalEvent as MouseEvent | undefined;
+      const { hideNode, selectNode } = useGraphStore.getState();
+      if (event.target.hasClass("tree-group")) {
+        onNodeTapRef.current?.(id, rendered.x, rendered.y);
+        return;
+      }
+      if (isSyntheticTreeId(id)) return;
+      if (original?.shiftKey) {
+        hideNode(id);
+        return;
+      }
       selectNode(id);
+      onNodeTapRef.current?.(id, rendered.x, rendered.y);
     });
+    cy.on("dbltap", "node", (event) => {
+      const id = event.target.id() as string;
+      if (isSyntheticTreeId(id) || event.target.hasClass("tree-group")) return;
+      onExploreRef.current?.(id);
+    });
+    cy.on("cxttap", "node", (event) => {
+      const id = event.target.id() as string;
+      if (isSyntheticTreeId(id) || event.target.hasClass("tree-group")) return;
+      event.originalEvent?.preventDefault();
+      const rendered = event.renderedPosition;
+      onContextMenuRef.current?.(id, rendered.x, rendered.y);
+    });
+    cy.on("mouseover", "node", (event) => {
+      const id = event.target.id() as string;
+      if (isSyntheticTreeId(id) || event.target.hasClass("tree-group")) return;
+      useGraphStore.getState().setHovered(id);
+    });
+    cy.on("mouseout", "node", () => useGraphStore.getState().setHovered(null));
     cy.on("tap", (event) => {
-      if (event.target === cy) selectNode(null);
+      if (event.target === cy) useGraphStore.getState().selectNode(null);
     });
+
+    let cancelled = false;
+    const observer = new ResizeObserver(() => {
+      if (cancelled) return;
+      cy.resize();
+    });
+    observer.observe(container);
+    const blockMenu = (event: Event): void => event.preventDefault();
+    container.addEventListener("contextmenu", blockMenu);
+
+    return () => {
+      cancelled = true;
+      observer.disconnect();
+      container.removeEventListener("contextmenu", blockMenu);
+      useGraphStore.getState().setCy(null);
+      cy.destroy();
+      cyRef.current = null;
+    };
+  }, [layoutMode, snapshot.scanId]);
+
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+
+    cy.json({ elements: elementsRef.current });
     runLayout(cy, layoutMode, snapshot.originDomain);
+
     let cancelled = false;
     requestAnimationFrame(() => {
       if (cancelled) return;
@@ -280,20 +366,10 @@ export function GraphCanvas({ snapshot }: Props) {
       }
     });
 
-    const observer = new ResizeObserver(() => {
-      if (cancelled) return;
-      cy.resize();
-    });
-    observer.observe(container);
-
     return () => {
       cancelled = true;
-      observer.disconnect();
-      useGraphStore.getState().setCy(null);
-      cy.destroy();
-      cyRef.current = null;
     };
-  }, [elements, layoutMode, layoutNonce, selectNode, snapshot.originDomain, snapshot.scanId]);
+  }, [elementsKey, layoutMode, layoutNonce, snapshot.originDomain]);
 
   useEffect(() => {
     const cy = cyRef.current;
@@ -311,4 +387,4 @@ export function GraphCanvas({ snapshot }: Props) {
       ) : null}
     </div>
   );
-}
+});

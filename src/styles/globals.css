@@ -34,9 +34,9 @@ body,
 html.popup-root,
 html.popup-root body,
 html.popup-root #root {
-  min-height: 0;
+  min-height: 320px;
   height: auto;
-  width: 320px;
+  width: 360px;
 }
 
 body {

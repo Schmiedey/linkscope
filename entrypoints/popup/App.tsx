@@ -1,93 +1,241 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { PrivacyScoreMark } from "@/src/components/PrivacyScoreMark";
-import { scoreFromScan } from "@/src/analysis/score";
-import { getScanTarget, openDashboard } from "@/src/extension/scanFlow";
+import { DomainIdentityCard } from "@/src/components/DomainIdentity";
+import { NutritionLabel } from "@/src/components/NutritionLabel";
+import { diffSnapshots } from "@/src/analysis/diff";
+import { identifyDomain } from "@/src/analysis/identity";
+import { nutritionFromScan } from "@/src/analysis/nutrition";
+import { concludeSite, mixSentence } from "@/src/analysis/unusual";
+import { getScanTarget, openDashboard, scanActiveTab } from "@/src/extension/scanFlow";
 import { registrableDomain } from "@/src/lib/domain";
-import { getLatestScanForSite, getSiteByDomain } from "@/src/storage/scans";
-import type { ScanRow } from "@/src/types/graph";
+import { formatRelativeTime } from "@/src/lib/utils";
+import { getDomain } from "@/src/storage/domains";
+import { isFollowedDomain, toggleFollowDomain } from "@/src/storage/follows";
+import { domainRowsForSnapshot, getSiteGlance, type SiteGlance } from "@/src/storage/glance";
+import type { DomainRow } from "@/src/types/graph";
 
 export function PopupApp() {
   const [host, setHost] = useState("—");
   const [blocked, setBlocked] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"scan" | "watch" | null>(null);
+  const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [latest, setLatest] = useState<ScanRow | null>(null);
+  const [glance, setGlance] = useState<SiteGlance | null>(null);
+  const [rows, setRows] = useState<DomainRow[]>([]);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [selectedRow, setSelectedRow] = useState<DomainRow | undefined>(undefined);
+  const [followed, setFollowed] = useState(false);
+  const [more, setMore] = useState(false);
+  const now = Date.now();
+
+  const load = async (domain: string): Promise<SiteGlance | null> => {
+    const next = await getSiteGlance(domain);
+    setGlance(next);
+    const domainRows = await domainRowsForSnapshot(next?.latestGraph);
+    setRows(domainRows);
+    return next;
+  };
 
   useEffect(() => {
     if (typeof browser === "undefined" || !browser.tabs?.query) {
-      setBlocked("Open LinkScope from the Chrome toolbar to scan a page.");
+      setBlocked("Open LinkScope from the Chrome toolbar to check a page.");
       return;
     }
-    void getScanTarget().then(async (target) => {
+    let alive = true;
+    void (async () => {
+      const target = await getScanTarget();
+      if (!alive) return;
       if (!target) {
-        setBlocked("Open a regular website, then scan it.");
+        setBlocked("Open a regular website, then check it.");
         return;
       }
       setBlocked(null);
       const domain = registrableDomain(target.url) ?? new URL(target.url).hostname;
       setHost(domain);
-      const site = await getSiteByDomain(domain);
-      if (site?.id === undefined) {
-        setLatest(null);
-        return;
+      await load(domain);
+      if (!alive) return;
+      setChecking(true);
+      setError(null);
+      try {
+        await scanActiveTab({
+          openReport: false,
+          tabId: target.id,
+          url: target.url,
+          notifyIfNew: false,
+        });
+        if (alive) await load(domain);
+      } catch (err) {
+        if (alive) setError(err instanceof Error ? err.message : "Check failed.");
+      } finally {
+        if (alive) setChecking(false);
       }
-      const scan = await getLatestScanForSite(site.id);
-      setLatest(scan ?? null);
-    });
+    })();
+    return () => {
+      alive = false;
+    };
   }, []);
 
-  const run = async (type: "SCAN_ACTIVE_TAB" | "WATCH_ACTIVE_TAB"): Promise<void> => {
-    setBusy(type === "WATCH_ACTIVE_TAB" ? "watch" : "scan");
+  useEffect(() => {
+    if (!selected) return;
+    void getDomain(selected).then(setSelectedRow);
+    void isFollowedDomain(selected).then(setFollowed);
+  }, [selected]);
+
+  const nutrition = glance ? nutritionFromScan(glance.latest, glance.latestGraph) : null;
+  const conclusion =
+    glance && nutrition
+      ? concludeSite({ nutrition, snapshot: glance.latestGraph, domainRows: rows })
+      : null;
+  const diff =
+    glance?.latest && glance.previous && glance.latestGraph && glance.previousGraph
+      ? diffSnapshots(glance.previous, glance.latest, glance.previousGraph, glance.latestGraph)
+      : undefined;
+
+  const inspect = (): void => {
+    const scanId = glance?.latest.id;
+    if (scanId !== undefined) {
+      void openDashboard(`/graph/${String(scanId)}`);
+      return;
+    }
+    void openDashboard(glance?.site.id !== undefined ? `/sites/${String(glance.site.id)}` : "/");
+  };
+
+  const runWatch = async (): Promise<void> => {
+    setChecking(true);
     setError(null);
     try {
-      const result = (await browser.runtime.sendMessage({ type })) as { ok?: boolean; error?: string };
-      if (!result?.ok) {
-        throw new Error(result?.error ?? "Scan failed.");
-      }
+      const result = (await browser.runtime.sendMessage({ type: "WATCH_ACTIVE_TAB" })) as {
+        ok?: boolean;
+        error?: string;
+      };
+      if (!result?.ok) throw new Error(result?.error ?? "Watch failed.");
       window.close();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Scan failed.");
-      setBusy(null);
+      setError(err instanceof Error ? err.message : "Watch failed.");
+      setChecking(false);
     }
   };
 
-  const mark = latest ? scoreFromScan(latest) : null;
-
   return (
-    <div className="flex w-[320px] flex-col bg-canvas p-4 pb-5 text-ink">
-      <p className="text-[12px] text-mute">LinkScope</p>
-      <h1 className="font-display mt-2 break-all text-[28px] leading-tight">{host}</h1>
-      {mark ? (
-        <div className="mt-2 flex items-baseline justify-between gap-3">
-          <PrivacyScoreMark compact score={mark.score} grade={mark.grade} />
-          <p className="text-[12px] text-mute">
-            Last scan · {latest?.trackerCount ?? 0} tracker{(latest?.trackerCount ?? 0) === 1 ? "" : "s"}
-          </p>
-        </div>
-      ) : (
-        <p className="mt-2 text-[13px] leading-relaxed text-mute">
-          Snapshot the page now, or watch fifteen seconds so delayed pixels can load.
-        </p>
-      )}
+    <div className="flex min-h-[320px] w-[360px] flex-col bg-canvas px-4 py-4 text-ink">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-[11px] tracking-[0.14em] text-mute uppercase">LinkScope</p>
+        {checking ? <p className="text-[11px] text-mute">Checking…</p> : null}
+      </div>
+      <h1 className="font-display mt-1.5 break-all text-[26px] leading-tight">{host}</h1>
+
       {blocked ? <p className="mt-3 text-[12px] text-amber">{blocked}</p> : null}
       {error ? <p className="mt-3 text-[12px] text-rose">{error}</p> : null}
-      <div className="mt-5 flex flex-col gap-2">
-        <Button className="w-full" disabled={busy !== null || Boolean(blocked)} onClick={() => void run("SCAN_ACTIVE_TAB")}>
-          {busy === "scan" ? "Scanning…" : "Scan now"}
-        </Button>
-        <Button
-          className="w-full"
-          variant="ghost"
-          disabled={busy !== null || Boolean(blocked)}
-          onClick={() => void run("WATCH_ACTIVE_TAB")}
-        >
-          {busy === "watch" ? "Starting watch…" : "Watch 15 seconds"}
-        </Button>
-        <Button className="w-full" variant="ghost" onClick={() => void openDashboard()}>
-          Open dashboard
-        </Button>
-      </div>
+
+      {selected ? (
+        <div className="mt-4">
+          <DomainIdentityCard
+            domain={selected}
+            row={selectedRow}
+            siteCount={glance?.siteCount}
+            snapshot={glance?.latestGraph}
+            followed={followed}
+            onBack={() => setSelected(null)}
+            onFollow={() => {
+              void toggleFollowDomain(selected).then(setFollowed);
+            }}
+          />
+        </div>
+      ) : nutrition && conclusion ? (
+        <div className="mt-3">
+          <p className="text-[15px] font-medium text-ink">{conclusion.headline}</p>
+          <p className="mt-1 text-[12px] leading-relaxed text-mute">{conclusion.detail}</p>
+          <p className="mt-1 text-[12px] text-mute">{mixSentence(conclusion.mixLabels)}</p>
+          <div className="mt-3">
+            <NutritionLabel nutrition={nutrition} compact />
+          </div>
+
+          {diff && (diff.added.length > 0 || diff.removed.length > 0) ? (
+            <section className="mt-4">
+              <p className="text-[12px] text-mute">
+                Changes since {formatRelativeTime(diff.from.timestamp, now)}
+                {diff.added.length > 0 ? ` · +${String(diff.added.length)} domains` : ""}
+              </p>
+              {diff.added.length > 0 ? (
+                <ul className="mt-1.5 space-y-0.5">
+                  {diff.added.slice(0, 6).map((node) => (
+                    <li key={node.domain}>
+                      <button
+                        type="button"
+                        className="text-left text-[12px] text-ink hover:underline"
+                        onClick={() => setSelected(node.domain)}
+                      >
+                        + {node.domain}
+                      </button>
+                      <span className="text-[11px] text-mute"> · {identifyDomain(node.domain).name}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {diff.removed.slice(0, 4).map((node) => (
+                <p key={node.domain} className="text-[12px] text-mute">
+                  − {node.domain}
+                </p>
+              ))}
+            </section>
+          ) : glance?.latest ? (
+            <p className="mt-3 text-[12px] text-mute">
+              Last seen {formatRelativeTime(glance.latest.timestamp, now)}
+              {glance.previous ? "" : " · first check"}
+            </p>
+          ) : null}
+
+          {conclusion.newToYou.length > 0 && !diff?.added.length ? (
+            <ul className="mt-3 space-y-0.5">
+              {conclusion.newToYou.slice(0, 4).map((node) => (
+                <li key={node.domain}>
+                  <button
+                    type="button"
+                    className="text-left text-[12px] text-ink hover:underline"
+                    onClick={() => setSelected(node.domain)}
+                  >
+                    {node.domain}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : !blocked ? (
+        <p className="mt-3 text-[13px] leading-relaxed text-mute">
+          {checking ? "Reading this page…" : "Check this site to see who else is on it."}
+        </p>
+      ) : null}
+
+      {!selected ? (
+        <div className="mt-4 flex flex-col gap-2">
+          <Button className="w-full" disabled={Boolean(blocked)} onClick={inspect}>
+            Inspect
+          </Button>
+          <button
+            type="button"
+            className="text-[12px] text-mute hover:text-ink"
+            onClick={() => setMore((value) => !value)}
+          >
+            {more ? "Less" : "More"}
+          </button>
+          {more ? (
+            <>
+              <Button variant="ghost" className="w-full" disabled={checking || Boolean(blocked)} onClick={() => void runWatch()}>
+                Wait 15 seconds
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full"
+                onClick={() =>
+                  void openDashboard(glance?.site.id !== undefined ? `/sites/${String(glance.site.id)}` : "/")
+                }
+              >
+                Full report
+              </Button>
+            </>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

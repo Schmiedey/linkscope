@@ -1,8 +1,31 @@
+import { refreshActiveTabBadge } from "@/src/extension/badge";
 import { canScanUrl, explainScanBlock } from "@/src/extension/permissions";
-import { persistScan, type PersistScanOptions } from "@/src/storage/scans";
+import { registrableDomain } from "@/src/lib/domain";
+import { notifyFirstSiteCheck } from "@/src/storage/alerts";
+import { getLatestScanForSite, getScan, getSiteByDomain, persistScan, type PersistScanOptions } from "@/src/storage/scans";
 import type { RawScanPayload } from "@/src/types/graph";
 
 export const WATCH_DURATION_MS = 15_000;
+
+export type ScanRunOptions = PersistScanOptions & {
+  openReport?: boolean;
+  tabId?: number;
+  url?: string;
+  notifyIfNew?: boolean;
+};
+
+const QUIET_SCAN_TTL_MS = 45_000;
+
+async function recentQuietScanId(url: string): Promise<number | null> {
+  const domain = registrableDomain(url);
+  if (!domain) return null;
+  const site = await getSiteByDomain(domain);
+  if (site?.id === undefined) return null;
+  const latest = await getLatestScanForSite(site.id);
+  if (latest?.id === undefined) return null;
+  if (Date.now() - latest.timestamp >= QUIET_SCAN_TTL_MS) return null;
+  return latest.id;
+}
 
 function readInjectedScan(): RawScanPayload | undefined {
   const scope = globalThis as typeof globalThis & { __LINKSCOPE_SCAN__?: RawScanPayload };
@@ -88,11 +111,31 @@ async function openGraphTab(scanId: number, replaceTabId?: number): Promise<void
   await browser.tabs.create({ url });
 }
 
-export async function scanActiveTab(options: PersistScanOptions = {}): Promise<number> {
-  const tab = await resolveTargetTab();
+export async function scanActiveTab(options: ScanRunOptions = {}): Promise<number> {
+  const tab =
+    options.tabId !== undefined && options.url
+      ? { id: options.tabId, url: options.url }
+      : await resolveTargetTab();
+  const openReport = options.openReport !== false;
+  if (!openReport) {
+    const recent = await recentQuietScanId(tab.url);
+    if (recent !== null) return recent;
+  }
+  const domainBefore = registrableDomain(tab.url);
+  const existed = domainBefore ? Boolean(await getSiteByDomain(domainBefore)) : false;
   const raw = await injectCollector(tab.id);
   const scanId = await persistScan(raw, options);
-  await openGraphTab(scanId);
+  await refreshActiveTabBadge();
+  if (openReport) await openGraphTab(scanId);
+  else if (options.notifyIfNew && !existed) {
+    const saved = await getScan(scanId);
+    await notifyFirstSiteCheck({
+      domain: saved?.domain ?? domainBefore ?? tab.url,
+      scanId,
+      thirdPartyCount: saved?.thirdPartyCount ?? 0,
+      trackerCount: saved?.trackerCount ?? 0,
+    });
+  }
   return scanId;
 }
 
@@ -109,6 +152,7 @@ export async function watchActiveTab(durationMs = WATCH_DURATION_MS): Promise<nu
       captureMode: "watch",
       durationMs,
     });
+    await refreshActiveTabBadge();
     await openGraphTab(scanId, waiting.id);
     return scanId;
   } catch (error) {
@@ -125,7 +169,8 @@ export async function watchActiveTab(durationMs = WATCH_DURATION_MS): Promise<nu
   }
 }
 
-export async function openDashboard(): Promise<void> {
-  const url = browser.runtime.getURL("/app.html#/");
+export async function openDashboard(hash = "/"): Promise<void> {
+  const path = hash.startsWith("#") ? hash.slice(1) : hash;
+  const url = browser.runtime.getURL(`/app.html#${path.startsWith("/") ? path : `/${path}`}`);
   await browser.tabs.create({ url });
 }

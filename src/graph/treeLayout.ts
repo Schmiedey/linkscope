@@ -103,12 +103,12 @@ export const TREE_STYLESHEET: cytoscape.StylesheetStyle[] = [
   {
     selector: "edge",
     style: {
-      width: 2,
-      "line-color": "data(color)",
-      "curve-style": "round-taxi",
+      width: 1,
+      "line-color": "#d4d4d4",
+      "curve-style": "taxi",
       "taxi-direction": "rightward",
-      "taxi-turn": 22,
-      "taxi-turn-min-distance": 14,
+      "taxi-turn": 18,
+      "taxi-turn-min-distance": 12,
       "target-arrow-shape": "none",
       "source-endpoint": "outside-to-node",
       "target-endpoint": "outside-to-node",
@@ -136,6 +136,22 @@ export const TREE_STYLESHEET: cytoscape.StylesheetStyle[] = [
 
 export function isSyntheticTreeId(id: string): boolean {
   return id.startsWith("tree-group:") || id === "__tree-root";
+}
+
+export function isTreeGroupId(id: string): boolean {
+  return id.startsWith("tree-group:");
+}
+
+export function nodesInTreeGroup(
+  groupId: string,
+  origin: string,
+  nodes: ScanGraphSnapshot["nodes"],
+): GraphNodeRecord[] {
+  const group = groupId.replace("tree-group:", "") as TreeGroup;
+  if (!TREE_GROUPS.includes(group)) return [];
+  return nodes
+    .filter((node) => !node.isOrigin && treeGroupOf(node, origin) === group)
+    .sort((a, b) => b.referenceCount - a.referenceCount || a.domain.localeCompare(b.domain));
 }
 
 export function treePathIds(
