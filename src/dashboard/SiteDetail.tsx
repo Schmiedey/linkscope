@@ -2,6 +2,7 @@ import { Link, useParams } from "react-router-dom";
 import { useMemo, useState } from "react";
 import { groupSnapshotByOwner } from "@/src/analysis/owners";
 import { countsSentence, nutritionFromScan } from "@/src/analysis/nutrition";
+import { AuditSiteCard } from "@/src/components/AuditSiteCard";
 import { NutritionLabel } from "@/src/components/NutritionLabel";
 import { OwnerGroups } from "@/src/components/OwnerGroups";
 import { ScanTimeline } from "@/src/components/ScanTimeline";
@@ -48,6 +49,9 @@ export function SiteDetailPage() {
       <p className="mt-2 max-w-xl text-[14px] text-mute">
         Every scan is a frozen receipt. Pick two to see what appeared or disappeared.
       </p>
+      <div className="mt-8 max-w-3xl">
+        <AuditSiteCard />
+      </div>
 
       {nutrition ? (
         <section className="mt-8 grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)]">

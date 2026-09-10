@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/src/components/ui/button";
+import { ScanProgressBar } from "@/src/components/ScanProgressBar";
+import { useScanProgress } from "@/src/components/useScanProgress";
 import { DomainIdentityCard } from "@/src/components/DomainIdentity";
 import { NutritionLabel } from "@/src/components/NutritionLabel";
 import { diffSnapshots } from "@/src/analysis/diff";
@@ -22,6 +24,7 @@ export function PopupApp() {
   const [selected, setSelected] = useState<string | null>(null);
   const [selectedRow, setSelectedRow] = useState<DomainRow | undefined>(undefined);
   const [followed, setFollowed] = useState(false);
+  const scanProgress = useScanProgress();
   const now = Date.now();
 
   const load = async (domain: string): Promise<SiteGlance | null> => {
@@ -46,20 +49,26 @@ export function PopupApp() {
       setBlocked(null);
       const domain = registrableDomain(target.url) ?? new URL(target.url).hostname;
       setHost(domain);
-      await load(domain);
-      if (!alive) return;
       setChecking(true);
       setError(null);
+      const requestId = scanProgress.begin();
       try {
         const result = (await browser.runtime.sendMessage({
           type: "SCAN_QUIET",
           tabId: target.id,
           url: target.url,
+          requestId,
         })) as { ok?: boolean; error?: string };
         if (!result?.ok) throw new Error(result?.error ?? "Check failed.");
-        if (alive) await load(domain);
+        if (alive) {
+          scanProgress.complete();
+          await load(domain);
+        }
       } catch (err) {
-        if (alive) setError(err instanceof Error ? err.message : "Check failed.");
+        if (alive) {
+          setError(err instanceof Error ? err.message : "Check failed.");
+          scanProgress.reset();
+        }
       } finally {
         if (alive) setChecking(false);
       }
@@ -67,7 +76,7 @@ export function PopupApp() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [scanProgress.begin, scanProgress.complete, scanProgress.reset]);
 
   useEffect(() => {
     if (!selected) return;
@@ -91,6 +100,7 @@ export function PopupApp() {
   };
 
   const runWatch = async (): Promise<void> => {
+    scanProgress.reset();
     setChecking(true);
     setError(null);
     try {
@@ -110,14 +120,21 @@ export function PopupApp() {
     <div className="flex min-h-[320px] w-[360px] flex-col bg-canvas px-4 py-4 text-ink">
       <div className="flex items-baseline justify-between gap-3">
         <p className="text-[11px] tracking-[0.14em] text-mute uppercase">LinkScope</p>
-        {checking ? <p className="text-[11px] text-mute">Checking…</p> : null}
+        {checking ? <p className="text-[11px] text-mute">Auditing live</p> : null}
       </div>
       <h1 className="font-display mt-1.5 break-all text-[26px] leading-tight">{host}</h1>
 
       {blocked ? <p className="mt-3 text-[12px] text-amber">{blocked}</p> : null}
       {error ? <p className="mt-3 text-[12px] text-rose">{error}</p> : null}
 
-      {selected ? (
+      {checking && scanProgress.progress ? (
+        <section className="mt-5 rounded-md border border-line bg-panel px-3.5 py-3.5">
+          <ScanProgressBar progress={scanProgress.progress} />
+          <p className="mt-2 text-[11px] leading-relaxed text-mute">
+            Keep this popup open while LinkScope maps the page.
+          </p>
+        </section>
+      ) : selected ? (
         <div className="mt-4">
           <DomainIdentityCard
             domain={selected}
@@ -183,7 +200,7 @@ export function PopupApp() {
 
       {!selected ? (
         <div className="mt-4 flex flex-col gap-2">
-          <Button className="w-full" disabled={Boolean(blocked)} onClick={inspect}>
+          <Button className="w-full" disabled={checking || Boolean(blocked)} onClick={inspect}>
             Inspect
           </Button>
           <Button variant="ghost" className="w-full" disabled={checking || Boolean(blocked)} onClick={() => void runWatch()}>

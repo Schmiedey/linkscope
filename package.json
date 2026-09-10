@@ -2,7 +2,7 @@
   "name": "linkscope",
   "description": "See every site, service, tracker, script, and external domain a webpage connects to.",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "wxt",

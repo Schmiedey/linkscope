@@ -1,6 +1,7 @@
 import { refreshActiveTabBadge } from "@/src/extension/badge";
 import { canScanUrl, explainScanBlock } from "@/src/extension/permissions";
 import { findingsFromRequests, startRequestCapture, stopRequestCapture } from "@/src/extension/requestLog";
+import type { ScanProgressUpdate } from "@/src/extension/scanProgress";
 import { registrableDomain } from "@/src/lib/domain";
 import { notifyFirstSiteCheck } from "@/src/storage/alerts";
 import { getScan, getSiteByDomain, persistScan, type PersistScanOptions } from "@/src/storage/scans";
@@ -8,13 +9,25 @@ import type { RawFinding, RawScanPayload } from "@/src/types/graph";
 
 export const WATCH_DURATION_MS = 15_000;
 
+type ProgressCallback = (update: ScanProgressUpdate) => void;
+
 export type ScanRunOptions = PersistScanOptions & {
   openReport?: boolean;
   tabId?: number;
   url?: string;
   notifyIfNew?: boolean;
   force?: boolean;
+  onProgress?: ProgressCallback;
 };
+
+function reportProgress(
+  callback: ScanRunOptions["onProgress"],
+  phase: ScanProgressUpdate["phase"],
+  percent: number,
+  label: string,
+): void {
+  callback?.({ phase, percent, label });
+}
 
 function readInjectedScan(): RawScanPayload | undefined {
   const scope = globalThis as typeof globalThis & { __LINKSCOPE_SCAN__?: RawScanPayload };
@@ -66,7 +79,7 @@ export async function getScanTarget(): Promise<{ id: number; url: string } | nul
   }
 }
 
-async function injectCollector(tabId: number): Promise<RawScanPayload> {
+export async function injectCollector(tabId: number): Promise<RawScanPayload> {
   const target = { tabId, allFrames: true as const };
   try {
     await browser.scripting.executeScript({
@@ -112,7 +125,7 @@ async function injectCollector(tabId: number): Promise<RawScanPayload> {
   return merged;
 }
 
-function withCapturedRequests(raw: RawScanPayload, tabId: number): RawScanPayload {
+export function withCapturedRequests(raw: RawScanPayload, tabId: number): RawScanPayload {
   const hops = stopRequestCapture(tabId);
   if (hops.length === 0) return raw;
   return {
@@ -140,17 +153,22 @@ export async function scanActiveTab(options: ScanRunOptions = {}): Promise<numbe
       ? { id: options.tabId, url: options.url }
       : await resolveTargetTab();
   const openReport = options.openReport !== false;
+  reportProgress(options.onProgress, "preparing", 10, "Connecting to page…");
   startRequestCapture(tab.id);
   const domainBefore = registrableDomain(tab.url);
   const existed = domainBefore ? Boolean(await getSiteByDomain(domainBefore)) : false;
   let raw: RawScanPayload;
   try {
+    reportProgress(options.onProgress, "collecting", 28, "Reading page resources…");
     raw = withCapturedRequests(await injectCollector(tab.id), tab.id);
   } catch (error) {
     stopRequestCapture(tab.id);
     throw error;
   }
+  reportProgress(options.onProgress, "analyzing", 62, "Tracing third-party connections…");
+  reportProgress(options.onProgress, "saving", 76, "Classifying and saving domains…");
   const scanId = await persistScan(raw, options);
+  reportProgress(options.onProgress, "saving", 94, "Updating site history…");
   await refreshActiveTabBadge();
   if (openReport) await openGraphTab(scanId);
   else if (options.notifyIfNew && !existed) {
@@ -162,6 +180,7 @@ export async function scanActiveTab(options: ScanRunOptions = {}): Promise<numbe
       trackerCount: saved?.trackerCount ?? 0,
     });
   }
+  reportProgress(options.onProgress, "complete", 100, "Audit complete");
   return scanId;
 }
 

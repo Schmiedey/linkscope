@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { groupSnapshotByOwner, mergeOwnerGroups } from "@/src/analysis/owners";
 import { insightLines } from "@/src/analysis/statistics";
+import { AuditSiteCard } from "@/src/components/AuditSiteCard";
 import { OwnerGroups } from "@/src/components/OwnerGroups";
 import { formatCount, formatRelativeTime } from "@/src/lib/utils";
 import { useAsync } from "@/src/lib/useAsync";
@@ -28,6 +29,9 @@ export function OverviewPage() {
       <header className="mb-10">
         <h1 className="font-display text-4xl">Your map so far</h1>
       </header>
+      <div className="mb-8">
+        <AuditSiteCard />
+      </div>
       <section className="mb-10 grid grid-cols-2 gap-px overflow-hidden rounded-md border border-line bg-line xl:grid-cols-4">
         <StatCard label="Sites" value={stats.data?.sites} />
         <StatCard label="Domains" value={stats.data?.domains} />

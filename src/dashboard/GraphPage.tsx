@@ -50,14 +50,14 @@ export function GraphPage() {
   }
 
   const snapshot = graph.data;
-  const watchNote = scan.data.captureMode === "watch" ? " · 15s watch" : "";
+  const captureNote = scan.data.captureMode === "watch" ? " · 15s watch" : "";
 
   return (
     <GraphViewer
       snapshot={snapshot}
       scan={scan.data}
       title={scan.data.domain}
-      subtitle={`${formatCount(thirdPartyCountOf(snapshot))} third parties · ${formatCount(trackerCountOf(snapshot))} trackers${watchNote}`}
+      subtitle={`${formatCount(thirdPartyCountOf(snapshot))} third parties · ${formatCount(trackerCountOf(snapshot))} trackers${captureNote}`}
       backTo={`/sites/${String(scan.data.siteId)}`}
       newDomains={newDomains}
     />

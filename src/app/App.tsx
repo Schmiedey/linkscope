@@ -1,5 +1,12 @@
 import { HashRouter, Route, Routes } from "react-router-dom";
 import { AppShell } from "@/src/components/AppShell";
+import { AuditComparePage } from "@/src/dashboard/AuditCompare";
+import { AuditDomainsPage } from "@/src/dashboard/AuditDomains";
+import { AuditNewPage } from "@/src/dashboard/AuditNew";
+import { AuditPagesPage } from "@/src/dashboard/AuditPages";
+import { AuditReportPage } from "@/src/dashboard/AuditReport";
+import { AuditRunningPage } from "@/src/dashboard/AuditRunning";
+import { AuditsPage } from "@/src/dashboard/Audits";
 import { DiffPage } from "@/src/dashboard/DiffPage";
 import { DomainDetailPage, DomainsPage } from "@/src/dashboard/Domains";
 import { FollowingPage } from "@/src/dashboard/Following";
@@ -22,6 +29,13 @@ export function App() {
         <Route element={<AppShell />}>
           <Route path="/" element={<OverviewPage />} />
           <Route path="/scans" element={<ScansPage />} />
+          <Route path="/audits" element={<AuditsPage />} />
+          <Route path="/audits/new" element={<AuditNewPage />} />
+          <Route path="/audits/:auditId" element={<AuditReportPage />} />
+          <Route path="/audits/:auditId/running" element={<AuditRunningPage />} />
+          <Route path="/audits/:auditId/pages" element={<AuditPagesPage />} />
+          <Route path="/audits/:auditId/domains" element={<AuditDomainsPage />} />
+          <Route path="/audits/compare/:oldId/:newId" element={<AuditComparePage />} />
           <Route path="/sites" element={<SitesPage />} />
           <Route path="/sites/:siteId" element={<SiteDetailPage />} />
           <Route path="/diff/:fromId/:toId" element={<DiffPage />} />

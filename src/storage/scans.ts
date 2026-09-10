@@ -238,16 +238,35 @@ export async function listLatestGraphs(): Promise<ScanGraphSnapshot[]> {
 }
 
 export async function clearAllData(): Promise<void> {
-  await db.transaction("rw", [db.sites, db.scans, db.scanGraphs, db.domains, db.sightings, db.alerts], async () => {
-    await Promise.all([
-      db.sites.clear(),
-      db.scans.clear(),
-      db.scanGraphs.clear(),
-      db.domains.clear(),
-      db.sightings.clear(),
-      db.alerts.clear(),
-    ]);
-  });
+  await db.transaction(
+    "rw",
+    [
+      db.sites,
+      db.scans,
+      db.scanGraphs,
+      db.domains,
+      db.sightings,
+      db.alerts,
+      db.audits,
+      db.auditPages,
+      db.auditPageGraphs,
+      db.auditDomains,
+    ],
+    async () => {
+      await Promise.all([
+        db.sites.clear(),
+        db.scans.clear(),
+        db.scanGraphs.clear(),
+        db.domains.clear(),
+        db.sightings.clear(),
+        db.alerts.clear(),
+        db.audits.clear(),
+        db.auditPages.clear(),
+        db.auditPageGraphs.clear(),
+        db.auditDomains.clear(),
+      ]);
+    },
+  );
 }
 
 export async function getOverviewStats(): Promise<{

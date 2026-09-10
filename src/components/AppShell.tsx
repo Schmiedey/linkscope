@@ -1,4 +1,4 @@
-import { Globe2, History, LayoutDashboard, Network, Settings, Star, Waypoints } from "lucide-react";
+import { ClipboardCheck, Globe2, History, LayoutDashboard, Network, Settings, Star, Waypoints } from "lucide-react";
 import { useEffect } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { cn } from "@/src/lib/utils";
@@ -8,6 +8,7 @@ import { markAlertsRead, unreadAlertCount } from "@/src/storage/alerts";
 const NAV = [
   { to: "/", label: "Overview", icon: LayoutDashboard },
   { to: "/scans", label: "Scans", icon: History },
+  { to: "/audits", label: "Audits", icon: ClipboardCheck },
   { to: "/sites", label: "Sites", icon: Globe2 },
   { to: "/domains", label: "Domains", icon: Waypoints },
   { to: "/following", label: "Watching", icon: Star },

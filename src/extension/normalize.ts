@@ -21,7 +21,14 @@ export type NormalizedScan = {
 };
 
 function sourceUrlOf(finding: RawFinding, pageUrl: string): string {
-  return finding.initiatorUrl || finding.documentUrl || pageUrl;
+  const candidate = finding.initiatorUrl || finding.documentUrl;
+  if (!candidate) return pageUrl;
+  try {
+    const protocol = new URL(candidate).protocol;
+    return protocol === "http:" || protocol === "https:" ? candidate : pageUrl;
+  } catch {
+    return pageUrl;
+  }
 }
 
 function addEdge(
