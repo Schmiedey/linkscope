@@ -1,6 +1,7 @@
 import { Copy, ExternalLink, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { DomainActions } from "@/src/components/DomainActions";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { OwnerGroups } from "@/src/components/OwnerGroups";
@@ -112,7 +113,9 @@ export function NodeInspector({ snapshot }: { snapshot: ScanGraphSnapshot }) {
             </ul>
           </section>
         ) : null}
-        <WhyChain chain={loadChainFor(snapshot, node.domain)} onSelect={(domain) => selectNode(domain)} />
+        {!node.isOrigin ? (
+          <WhyChain chain={loadChainFor(snapshot, node.domain)} onSelect={(domain) => selectNode(domain)} />
+        ) : null}
         <section>
           <h3 className="mb-2 text-[12px] text-mute">Evidence</h3>
           <div className="space-y-3">
@@ -134,17 +137,16 @@ export function NodeInspector({ snapshot }: { snapshot: ScanGraphSnapshot }) {
         </section>
       </div>
       <div className="flex shrink-0 flex-col gap-2 border-t border-line p-3">
-        <div className="flex gap-2">
-          <Button
-            variant={followed ? "subtle" : "ghost"}
-            size="sm"
-            className="flex-1"
-            onClick={() => {
+        {!node.isOrigin ? (
+          <DomainActions
+            domain={node.domain}
+            followed={followed}
+            onFollow={() => {
               void toggleFollowDomain(node.domain).then(setFollowed);
             }}
-          >
-            {followed ? "Following" : "Follow"}
-          </Button>
+          />
+        ) : null}
+        <div className="flex gap-2">
           <Button variant="ghost" size="sm" className="flex-1" onClick={() => void copy()}>
             <Copy className="h-3 w-3" />
             {copied ? "Copied" : "Copy"}
@@ -161,7 +163,7 @@ export function NodeInspector({ snapshot }: { snapshot: ScanGraphSnapshot }) {
         </div>
         {followed ? (
           <Link to="/following" className="text-center text-[12px] text-mute hover:text-ink">
-            View on Following
+            View watched domains
           </Link>
         ) : null}
       </div>

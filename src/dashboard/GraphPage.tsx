@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { enrichSnapshot, thirdPartyCountOf, trackerCountOf } from "@/src/analysis/enrich";
-import { scoreFromScan } from "@/src/analysis/score";
 import { GraphViewer } from "@/src/graph/GraphViewer";
 import { formatCount } from "@/src/lib/utils";
 import { useAsync } from "@/src/lib/useAsync";
@@ -51,7 +50,6 @@ export function GraphPage() {
   }
 
   const snapshot = graph.data;
-  const mark = scoreFromScan(scan.data);
   const watchNote = scan.data.captureMode === "watch" ? " · 15s watch" : "";
 
   return (
@@ -59,7 +57,7 @@ export function GraphPage() {
       snapshot={snapshot}
       scan={scan.data}
       title={scan.data.domain}
-      subtitle={`Grade ${mark.grade} ${String(mark.score)} · ${formatCount(thirdPartyCountOf(snapshot))} third parties · ${formatCount(trackerCountOf(snapshot))} trackers${watchNote}`}
+      subtitle={`${formatCount(thirdPartyCountOf(snapshot))} third parties · ${formatCount(trackerCountOf(snapshot))} trackers${watchNote}`}
       backTo={`/sites/${String(scan.data.siteId)}`}
       newDomains={newDomains}
     />

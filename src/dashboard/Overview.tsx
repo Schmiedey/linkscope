@@ -1,16 +1,11 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { groupSnapshotByOwner, mergeOwnerGroups } from "@/src/analysis/owners";
-import { scoreFromScan } from "@/src/analysis/score";
 import { insightLines } from "@/src/analysis/statistics";
 import { OwnerGroups } from "@/src/components/OwnerGroups";
-import { PrivacyScoreMark } from "@/src/components/PrivacyScoreMark";
-import { Button } from "@/src/components/ui/button";
 import { formatCount, formatRelativeTime } from "@/src/lib/utils";
 import { useAsync } from "@/src/lib/useAsync";
 import { listRecentAlerts } from "@/src/storage/alerts";
-import { getOverviewStats, listLatestGraphs, listRecentScans, listSites } from "@/src/storage/scans";
-import { LIVE_SCAN_DOMAINS, seedLiveTen, seedSampleSite } from "@/src/storage/seed";
+import { getOverviewStats, listLatestGraphs, listRecentScans } from "@/src/storage/scans";
 
 export function OverviewPage() {
   const now = Date.now();
@@ -27,39 +22,6 @@ export function OverviewPage() {
     densest?.domain,
     densest?.trackerCount,
   );
-
-  useEffect(() => {
-    if (scans.loading || scans.data === undefined) return;
-    if (location.hostname !== "localhost") {
-      if (scans.data.length > 0) return;
-      if (sessionStorage.getItem("linkscope-sample-seeded") === "1") return;
-      sessionStorage.setItem("linkscope-sample-seeded", "1");
-      void seedSampleSite().then(() => {
-        stats.reload();
-        scans.reload();
-        owners.reload();
-      });
-      return;
-    }
-    if (sessionStorage.getItem("linkscope-live-ten") === "1") return;
-    void (async () => {
-      const sites = await listSites();
-      const domains = new Set(sites.map((site) => site.domain));
-      if (LIVE_SCAN_DOMAINS.every((domain) => domains.has(domain))) {
-        sessionStorage.setItem("linkscope-live-ten", "1");
-        return;
-      }
-      sessionStorage.setItem("linkscope-live-ten", "1");
-      try {
-        await seedLiveTen();
-        stats.reload();
-        scans.reload();
-        owners.reload();
-      } catch {
-        sessionStorage.removeItem("linkscope-live-ten");
-      }
-    })();
-  }, [scans.data, scans.loading, scans, stats, owners]);
 
   return (
     <div className="px-10 py-10">
@@ -123,7 +85,6 @@ export function OverviewPage() {
         {scans.data?.length ? (
           <div className="divide-y divide-line border-y border-line">
             {scans.data.map((scan) => {
-              const mark = scoreFromScan(scan);
               return (
                 <Link
                   key={scan.id}
@@ -135,8 +96,7 @@ export function OverviewPage() {
                     <div className="text-[12px] text-mute">{scan.title}</div>
                   </div>
                   <div className="text-right text-[12px] text-mute">
-                    <PrivacyScoreMark compact score={mark.score} grade={mark.grade} />
-                    <div className="mt-0.5">
+                    <div>
                       {formatCount(scan.thirdPartyCount)} third parties · {formatCount(scan.trackerCount)} tracker
                       {scan.trackerCount === 1 ? "" : "s"}
                     </div>
@@ -147,15 +107,7 @@ export function OverviewPage() {
             })}
           </div>
         ) : (
-          <EmptyState
-            onSeed={() => {
-              void seedSampleSite().then(() => {
-                stats.reload();
-                scans.reload();
-                owners.reload();
-              });
-            }}
-          />
+          <EmptyState />
         )}
       </section>
     </div>
@@ -171,22 +123,13 @@ function StatCard({ label, value }: { label: string; value: number | undefined }
   );
 }
 
-function EmptyState({ onSeed }: { onSeed: () => void }) {
-  const [busy, setBusy] = useState(false);
-
-  const loadSample = (): void => {
-    setBusy(true);
-    onSeed();
-    window.setTimeout(() => setBusy(false), 600);
-  };
-
+function EmptyState() {
   return (
     <div className="py-10">
       <p className="font-display text-2xl">No scans yet</p>
-      <p className="mt-2 text-[13px] text-mute">Open any website, click the LinkScope icon, and press Scan website.</p>
-      <Button className="mt-5" disabled={busy} onClick={loadSample}>
-        {busy ? "Saving…" : "Load sample site"}
-      </Button>
+      <p className="mt-2 text-[13px] text-mute">
+        Open a website and click the LinkScope icon. Nothing is scanned until you do.
+      </p>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { identifyDomain, riskLabel, seenOnShare, type DomainIdentity } from "@/src/analysis/identity";
+import { DomainActions } from "@/src/components/DomainActions";
 import { WhyChain } from "@/src/components/WhyChain";
 import { Badge } from "@/src/components/ui/badge";
-import { Button } from "@/src/components/ui/button";
 import { formatShortDate } from "@/src/lib/utils";
 import type { DomainRow, ScanGraphSnapshot } from "@/src/types/graph";
 import { loadChainFor } from "@/src/analysis/why";
@@ -53,16 +53,7 @@ export function DomainIdentityCard({
         </div>
       </dl>
       {chain ? <WhyChain chain={chain} /> : <p className="text-[13px] text-mute">{identity.usedFor}</p>}
-      {onFollow ? (
-        <div className="space-y-1.5">
-          <Button variant={followed ? "subtle" : "ghost"} size="sm" className="w-full" onClick={onFollow}>
-            {followed ? "Following" : "Follow this domain"}
-          </Button>
-          {followed ? (
-            <p className="text-[12px] text-mute">Listed under Following in the dashboard.</p>
-          ) : null}
-        </div>
-      ) : null}
+      <DomainActions domain={domain} followed={followed} onFollow={onFollow} />
     </div>
   );
 }

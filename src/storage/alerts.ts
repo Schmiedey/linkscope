@@ -96,6 +96,30 @@ export async function notifyFirstSiteCheck(input: {
   }
 }
 
+export async function notifyFollowedSeen(input: {
+  domain: string;
+  scanId: number;
+  followed: string[];
+}): Promise<void> {
+  if (typeof browser === "undefined" || !browser.notifications?.create) return;
+  if (!(await notificationsEnabled())) return;
+  const sample = input.followed.slice(0, 3).join(", ");
+  const who =
+    input.followed.length === 1
+      ? sample
+      : `${String(input.followed.length)} watched domains`;
+  try {
+    await browser.notifications.create(`linkscope-follow-${String(input.scanId)}`, {
+      type: "basic",
+      iconUrl: notificationIconUrl(),
+      title: `Watched domain on ${input.domain}`,
+      message: `${who} appeared here.`,
+    });
+  } catch {
+    // Notifications can be blocked even with the permission present.
+  }
+}
+
 async function notifyChange(alert: AlertRow, fromCount: number, toCount: number): Promise<void> {
   if (typeof browser === "undefined" || !browser.notifications?.create) return;
   const added = alert.addedTrackers;

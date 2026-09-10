@@ -13,8 +13,15 @@ export default defineConfig({
     name: "LinkScope",
     description:
       "See every site, service, tracker, script, and external domain a webpage connects to—visualized as an interactive graph.",
-    permissions: ["activeTab", "scripting", "tabs", "notifications"],
-    host_permissions: ["http://*/*", "https://*/*"],
+    permissions: [
+      "activeTab",
+      "scripting",
+      "tabs",
+      "notifications",
+      "webRequest",
+      "declarativeNetRequest",
+    ],
+    optional_host_permissions: ["*://*/*"],
     commands: {
       "scan-active-tab": {
         suggested_key: {

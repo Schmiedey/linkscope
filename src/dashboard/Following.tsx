@@ -12,13 +12,13 @@ export function FollowingPage() {
 
   return (
     <div className="px-10 py-10">
-      <h1 className="font-display text-4xl">Following</h1>
+      <h1 className="font-display text-4xl">Watched domains</h1>
       <p className="mt-2 max-w-xl text-[14px] text-mute">
-        Domains you asked LinkScope to remember. See which of your sites they appear on.
+        Domains you asked LinkScope to watch. You’ll get a notification when one of them shows up on a site you check.
       </p>
       {(followed.data ?? []).length === 0 ? (
         <p className="mt-8 text-[14px] text-mute">
-          Right-click a graph node and choose Follow, or follow from a domain page. Followed domains show up here.
+          Watch a domain from a scan, then check other sites. LinkScope only looks when you click.
         </p>
       ) : (
         <div className="mt-8 space-y-10">
@@ -62,7 +62,7 @@ function FollowedDomain({
             void unfollowDomain(domain).then(onUnfollow);
           }}
         >
-          Unfollow
+          Unwatch
         </Button>
       </div>
       <ul className="divide-y divide-line border-y border-line">

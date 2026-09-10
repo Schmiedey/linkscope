@@ -1,17 +1,13 @@
 import { Link, useParams } from "react-router-dom";
 import { useMemo, useState } from "react";
 import { groupSnapshotByOwner } from "@/src/analysis/owners";
-import { nutritionFromScan } from "@/src/analysis/nutrition";
-import { concludeSite, mixSentence } from "@/src/analysis/unusual";
-import { scoreFromScan, scoreSnapshot } from "@/src/analysis/score";
+import { countsSentence, nutritionFromScan } from "@/src/analysis/nutrition";
 import { NutritionLabel } from "@/src/components/NutritionLabel";
 import { OwnerGroups } from "@/src/components/OwnerGroups";
-import { PrivacyScoreMark } from "@/src/components/PrivacyScoreMark";
 import { ScanTimeline } from "@/src/components/ScanTimeline";
 import { Badge } from "@/src/components/ui/badge";
 import { formatCount, formatRelativeTime } from "@/src/lib/utils";
 import { useAsync } from "@/src/lib/useAsync";
-import { domainRowsForSnapshot } from "@/src/storage/glance";
 import { getScanGraph, getSite, listScansForSite } from "@/src/storage/scans";
 
 export function SiteDetailPage() {
@@ -28,26 +24,7 @@ export function SiteDetailPage() {
   const latestGraph = useAsync(() => (latest?.id !== undefined ? getScanGraph(latest.id) : Promise.resolve(undefined)), [
     latest?.id,
   ]);
-  const domainRows = useAsync(
-    () => domainRowsForSnapshot(latestGraph.data),
-    [latestGraph.data?.scanId],
-  );
   const nutrition = latest ? nutritionFromScan(latest, latestGraph.data) : null;
-  const conclusion =
-    nutrition && latestGraph.data
-      ? concludeSite({ nutrition, snapshot: latestGraph.data, domainRows: domainRows.data })
-      : null;
-  const scored = latestGraph.data
-    ? scoreSnapshot(latestGraph.data)
-    : latest
-      ? {
-          ...scoreFromScan(latest),
-          reasons: [
-            `${formatCount(latest.trackerCount)} tracker domains`,
-            `${formatCount(latest.thirdPartyCount)} third parties`,
-          ],
-        }
-      : null;
   const owners = latestGraph.data ? groupSnapshotByOwner(latestGraph.data) : [];
   const defaults = useMemo(() => {
     if (ordered.length < 2) return { from: null, to: null };
@@ -72,26 +49,13 @@ export function SiteDetailPage() {
         Every scan is a frozen receipt. Pick two to see what appeared or disappeared.
       </p>
 
-      {scored ? (
+      {nutrition ? (
         <section className="mt-8 grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)]">
           <div>
-            <PrivacyScoreMark score={scored.score} grade={scored.grade} />
-            {nutrition ? <div className="mt-6 max-w-[220px]"><NutritionLabel nutrition={nutrition} compact /></div> : null}
+            <NutritionLabel nutrition={nutrition} compact />
           </div>
           <div>
-            {conclusion ? (
-              <>
-                <p className="text-[18px] text-ink">{conclusion.headline}</p>
-                <p className="mt-2 text-[14px] text-mute">{conclusion.detail}</p>
-                <p className="mt-1 text-[14px] text-mute">{mixSentence(conclusion.mixLabels)}</p>
-              </>
-            ) : (
-              <ul className="space-y-1 text-[14px] text-ink">
-                {scored.reasons.map((line) => (
-                  <li key={line}>{line}</li>
-                ))}
-              </ul>
-            )}
+            <p className="text-[18px] text-ink">{countsSentence(nutrition.counts)}</p>
             {latest?.id !== undefined ? (
               <Link
                 to={`/graph/${String(latest.id)}`}
@@ -141,7 +105,6 @@ export function SiteDetailPage() {
             <th className="pb-2 font-normal">From</th>
             <th className="pb-2 font-normal">To</th>
             <th className="pb-2 font-normal">When</th>
-            <th className="pb-2 font-normal">Score</th>
             <th className="pb-2 font-normal">Third parties</th>
             <th className="pb-2 font-normal">Trackers</th>
             <th className="pb-2 font-normal">Capture</th>
@@ -150,7 +113,6 @@ export function SiteDetailPage() {
         </thead>
         <tbody>
           {ordered.map((scan) => {
-            const mark = scoreFromScan(scan);
             return (
               <tr key={scan.id} className="border-t border-line">
                 <td className="py-3">
@@ -172,9 +134,6 @@ export function SiteDetailPage() {
                   />
                 </td>
                 <td className="py-3 text-mute">{formatRelativeTime(scan.timestamp, now)}</td>
-                <td className="py-3">
-                  <PrivacyScoreMark compact score={mark.score} grade={mark.grade} />
-                </td>
                 <td className="py-3">{formatCount(scan.thirdPartyCount)}</td>
                 <td className="py-3">{formatCount(scan.trackerCount)}</td>
                 <td className="py-3">

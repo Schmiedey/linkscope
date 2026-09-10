@@ -36,6 +36,8 @@ export type RawFinding = {
   url: string;
   snippet: string;
   context?: string;
+  initiatorUrl?: string;
+  documentUrl?: string;
 };
 
 export type RawScanPayload = {
@@ -110,7 +112,7 @@ export type ScanRow = {
   iframeCount?: number;
 };
 
-export type AlertKind = "new-trackers" | "tracker-surge";
+export type AlertKind = "new-trackers" | "tracker-surge" | "followed-seen";
 
 export type AlertRow = {
   id?: number;

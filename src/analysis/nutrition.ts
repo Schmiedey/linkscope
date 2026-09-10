@@ -49,6 +49,18 @@ export function countsFromNodes(nodes: GraphNodeRecord[]): NutritionCounts {
   };
 }
 
+export function countsSentence(counts: NutritionCounts): string {
+  const parts = [
+    `${String(counts.thirdParties)} third-party ${counts.thirdParties === 1 ? "domain" : "domains"}`,
+    `${String(counts.trackers)} ${counts.trackers === 1 ? "tracker" : "trackers"}`,
+    `${String(counts.ads)} ${counts.ads === 1 ? "ad" : "ads"}`,
+  ];
+  if (counts.unknown > 0) {
+    parts.push(`${String(counts.unknown)} unknown`);
+  }
+  return parts.join(" · ");
+}
+
 export function mixFromCounts(counts: NutritionCounts): Array<{ category: DomainCategory; count: number }> {
   const rows: Array<{ category: DomainCategory; count: number }> = [
     { category: "cdn", count: counts.cdns },

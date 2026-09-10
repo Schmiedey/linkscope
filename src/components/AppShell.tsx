@@ -10,7 +10,7 @@ const NAV = [
   { to: "/scans", label: "Scans", icon: History },
   { to: "/sites", label: "Sites", icon: Globe2 },
   { to: "/domains", label: "Domains", icon: Waypoints },
-  { to: "/following", label: "Following", icon: Star },
+  { to: "/following", label: "Watching", icon: Star },
   { to: "/global", label: "Global graph", icon: Network },
   { to: "/settings", label: "Settings", icon: Settings },
 ];

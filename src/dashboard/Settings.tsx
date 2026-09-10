@@ -98,15 +98,16 @@ export function SettingsPage() {
       <section className="mb-8">
         <h2 className="text-[15px] font-medium">Privacy</h2>
         <p className="mt-2 text-[14px] leading-relaxed text-mute">
-          LinkScope scans only when you click Scan or Watch. It does not run in the background and does not send data to a
-          server. Your graph lives in this browser.
+          LinkScope scans only when you click the toolbar icon, press the shortcut, or start a 15-second watch. It does
+          not run on every page in the background and does not send data to a server. Snapshots older than 30 days, or
+          past 150 stored scans, are deleted locally.
         </p>
       </section>
       <section className="mb-8">
         <h2 className="text-[15px] font-medium">Change alerts</h2>
         <p className="mt-2 mb-4 text-[14px] leading-relaxed text-mute">
-          When a rescan finds new tracker domains, LinkScope stores a local alert and can notify this browser. Nothing is
-          uploaded.
+          When a rescan finds new tracker domains, or a watched domain appears on another site you check, LinkScope can
+          notify this browser. Nothing is uploaded.
         </p>
         <Button variant="ghost" onClick={() => void toggleNotify()}>
           {(notify.data ?? true) ? "Notifications on" : "Notifications off"}
@@ -152,7 +153,9 @@ export function SettingsPage() {
       </section>
       <section className="mb-8">
         <h2 className="text-[15px] font-medium">Sample data</h2>
-        <p className="mt-2 mb-4 text-[14px] text-mute">Add a saved scan for theguardian.com so you can explore without scanning a live page.</p>
+        <p className="mt-2 mb-4 text-[14px] text-mute">
+          Optional demo snapshot for theguardian.com. It is not a scan you ran and is not added unless you click.
+        </p>
         <Button variant="ghost" onClick={() => void seed()}>
           {seeded ? "Sample site saved" : "Add sample site"}
         </Button>

@@ -222,7 +222,7 @@ export function GraphViewer({
                   setMenu(null);
                 }}
               >
-                {menu.followed ? "Unfollow" : "Follow in LinkScope"}
+                {menu.followed ? "Stop watching" : "Watch this domain"}
               </button>
               {menu.followed ? (
                 <button
@@ -233,7 +233,7 @@ export function GraphViewer({
                     setMenu(null);
                   }}
                 >
-                  Open Following
+                  Open watched list
                 </button>
               ) : null}
             </div>

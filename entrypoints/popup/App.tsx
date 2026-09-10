@@ -4,14 +4,13 @@ import { DomainIdentityCard } from "@/src/components/DomainIdentity";
 import { NutritionLabel } from "@/src/components/NutritionLabel";
 import { diffSnapshots } from "@/src/analysis/diff";
 import { identifyDomain } from "@/src/analysis/identity";
-import { nutritionFromScan } from "@/src/analysis/nutrition";
-import { concludeSite, mixSentence } from "@/src/analysis/unusual";
-import { getScanTarget, openDashboard, scanActiveTab } from "@/src/extension/scanFlow";
+import { countsSentence, nutritionFromScan } from "@/src/analysis/nutrition";
+import { getScanTarget, openDashboard } from "@/src/extension/scanFlow";
 import { registrableDomain } from "@/src/lib/domain";
 import { formatRelativeTime } from "@/src/lib/utils";
 import { getDomain } from "@/src/storage/domains";
 import { isFollowedDomain, toggleFollowDomain } from "@/src/storage/follows";
-import { domainRowsForSnapshot, getSiteGlance, type SiteGlance } from "@/src/storage/glance";
+import { getSiteGlance, type SiteGlance } from "@/src/storage/glance";
 import type { DomainRow } from "@/src/types/graph";
 
 export function PopupApp() {
@@ -20,18 +19,14 @@ export function PopupApp() {
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [glance, setGlance] = useState<SiteGlance | null>(null);
-  const [rows, setRows] = useState<DomainRow[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [selectedRow, setSelectedRow] = useState<DomainRow | undefined>(undefined);
   const [followed, setFollowed] = useState(false);
-  const [more, setMore] = useState(false);
   const now = Date.now();
 
   const load = async (domain: string): Promise<SiteGlance | null> => {
     const next = await getSiteGlance(domain);
     setGlance(next);
-    const domainRows = await domainRowsForSnapshot(next?.latestGraph);
-    setRows(domainRows);
     return next;
   };
 
@@ -56,13 +51,12 @@ export function PopupApp() {
       setChecking(true);
       setError(null);
       try {
-        await scanActiveTab({
-          openReport: false,
+        const result = (await browser.runtime.sendMessage({
+          type: "SCAN_QUIET",
           tabId: target.id,
           url: target.url,
-          notifyIfNew: false,
-          force: true,
-        });
+        })) as { ok?: boolean; error?: string };
+        if (!result?.ok) throw new Error(result?.error ?? "Check failed.");
         if (alive) await load(domain);
       } catch (err) {
         if (alive) setError(err instanceof Error ? err.message : "Check failed.");
@@ -82,10 +76,6 @@ export function PopupApp() {
   }, [selected]);
 
   const nutrition = glance ? nutritionFromScan(glance.latest, glance.latestGraph) : null;
-  const conclusion =
-    glance && nutrition
-      ? concludeSite({ nutrition, snapshot: glance.latestGraph, domainRows: rows })
-      : null;
   const diff =
     glance?.latest && glance.previous && glance.latestGraph && glance.previousGraph
       ? diffSnapshots(glance.previous, glance.latest, glance.previousGraph, glance.latestGraph)
@@ -141,11 +131,9 @@ export function PopupApp() {
             }}
           />
         </div>
-      ) : nutrition && conclusion ? (
+      ) : nutrition ? (
         <div className="mt-3">
-          <p className="text-[15px] font-medium text-ink">{conclusion.headline}</p>
-          <p className="mt-1 text-[12px] leading-relaxed text-mute">{conclusion.detail}</p>
-          <p className="mt-1 text-[12px] text-mute">{mixSentence(conclusion.mixLabels)}</p>
+          <p className="text-[15px] font-medium text-ink">{countsSentence(nutrition.counts)}</p>
           <div className="mt-3">
             <NutritionLabel nutrition={nutrition} compact />
           </div>
@@ -186,26 +174,10 @@ export function PopupApp() {
               Last seen {formatRelativeTime(glance.latest.timestamp, now)} · first check
             </p>
           ) : null}
-
-          {conclusion.newToYou.length > 0 && !diff?.added.length ? (
-            <ul className="mt-3 space-y-0.5">
-              {conclusion.newToYou.slice(0, 4).map((node) => (
-                <li key={node.domain}>
-                  <button
-                    type="button"
-                    className="text-left text-[12px] text-ink hover:underline"
-                    onClick={() => setSelected(node.domain)}
-                  >
-                    {node.domain}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
         </div>
       ) : !blocked ? (
         <p className="mt-3 text-[13px] leading-relaxed text-mute">
-          {checking ? "Reading this page…" : "Check this site to see who else is on it."}
+          {checking ? "Reading this page…" : "Click the icon on a website to check who else is on it."}
         </p>
       ) : null}
 
@@ -214,29 +186,18 @@ export function PopupApp() {
           <Button className="w-full" disabled={Boolean(blocked)} onClick={inspect}>
             Inspect
           </Button>
-          <button
-            type="button"
-            className="text-[12px] text-mute hover:text-ink"
-            onClick={() => setMore((value) => !value)}
+          <Button variant="ghost" className="w-full" disabled={checking || Boolean(blocked)} onClick={() => void runWatch()}>
+            Watch 15 seconds
+          </Button>
+          <Button
+            variant="ghost"
+            className="w-full"
+            onClick={() =>
+              void openDashboard(glance?.site.id !== undefined ? `/sites/${String(glance.site.id)}` : "/")
+            }
           >
-            {more ? "Less" : "More"}
-          </button>
-          {more ? (
-            <>
-              <Button variant="ghost" className="w-full" disabled={checking || Boolean(blocked)} onClick={() => void runWatch()}>
-                Wait 15 seconds
-              </Button>
-              <Button
-                variant="ghost"
-                className="w-full"
-                onClick={() =>
-                  void openDashboard(glance?.site.id !== undefined ? `/sites/${String(glance.site.id)}` : "/")
-                }
-              >
-                Full report
-              </Button>
-            </>
-          ) : null}
+            Full report
+          </Button>
         </div>
       ) : null}
     </div>

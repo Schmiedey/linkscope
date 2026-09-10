@@ -1,4 +1,3 @@
-import { scoreFromScan } from "@/src/analysis/score";
 import { formatCount } from "@/src/lib/utils";
 import type { ScanRow } from "@/src/types/graph";
 
@@ -28,7 +27,6 @@ export function ScanTimeline({ scans }: { scans: ScanRow[] }) {
   const first = points[0];
   if (!latest || !first) return null;
   const trackerDelta = latest.trackerCount - first.trackerCount;
-  const scoreDelta = scoreFromScan(latest).score - scoreFromScan(first).score;
 
   return (
     <div>
@@ -48,7 +46,6 @@ export function ScanTimeline({ scans }: { scans: ScanRow[] }) {
         {formatCount(points.length)} scans
         <span className="mx-2 text-line">·</span>
         Trackers {trackerDelta === 0 ? "unchanged" : trackerDelta > 0 ? `+${String(trackerDelta)}` : String(trackerDelta)}
-        {scoreDelta !== 0 ? ` · score ${scoreDelta > 0 ? "+" : ""}${String(scoreDelta)}` : ""}
       </p>
     </div>
   );

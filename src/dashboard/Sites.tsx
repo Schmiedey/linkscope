@@ -1,6 +1,4 @@
 import { Link } from "react-router-dom";
-import { scoreFromScan } from "@/src/analysis/score";
-import { PrivacyScoreMark } from "@/src/components/PrivacyScoreMark";
 import { formatCount, formatRelativeTime } from "@/src/lib/utils";
 import { useAsync } from "@/src/lib/useAsync";
 import { getLatestScanForSite, listSites } from "@/src/storage/scans";
@@ -72,9 +70,6 @@ function SiteCard({ site, latest }: { site: SiteRow; latest: ScanRow | undefined
         </div>
       </div>
       <div className="flex items-center gap-4">
-        {latest ? (
-          <PrivacyScoreMark compact score={scoreFromScan(latest).score} grade={scoreFromScan(latest).grade} />
-        ) : null}
         {latest?.id !== undefined ? (
           <Link to={`/graph/${String(latest.id)}`} className="text-[13px] text-ink hover:underline">
             Latest graph

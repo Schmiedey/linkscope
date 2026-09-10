@@ -1,5 +1,4 @@
-import { describeDomain } from "@/src/analysis/categorizer";
-import { isTrackerCategory } from "@/src/analysis/categorizer";
+import { describeDomain, isTrackerCategory } from "@/src/analysis/categorizer";
 import { isFirstPartyDomain } from "@/src/analysis/firstParty";
 import { hostnameFromUrl, registrableDomain } from "@/src/lib/domain";
 import type {
@@ -7,6 +6,7 @@ import type {
   Evidence,
   GraphEdgeRecord,
   GraphNodeRecord,
+  RawFinding,
   RawScanPayload,
   ScanGraphSnapshot,
 } from "@/src/types/graph";
@@ -19,6 +19,34 @@ export type NormalizedScan = {
   thirdPartyCount: number;
   trackerCount: number;
 };
+
+function sourceUrlOf(finding: RawFinding, pageUrl: string): string {
+  return finding.initiatorUrl || finding.documentUrl || pageUrl;
+}
+
+function addEdge(
+  edges: Map<string, GraphEdgeRecord>,
+  source: string,
+  target: string,
+  type: ConnectionType,
+  evidence: Evidence,
+): void {
+  const edgeId = `${source}|${target}|${type}`;
+  const existing = edges.get(edgeId);
+  if (existing) {
+    existing.count += 1;
+    if (existing.evidence.length < MAX_EVIDENCE) existing.evidence.push(evidence);
+    return;
+  }
+  edges.set(edgeId, {
+    id: edgeId,
+    source,
+    target,
+    type,
+    count: 1,
+    evidence: [evidence],
+  });
+}
 
 export function normalizeScan(raw: RawScanPayload): NormalizedScan {
   const originDomain = registrableDomain(raw.url);
@@ -36,6 +64,10 @@ export function normalizeScan(raw: RawScanPayload): NormalizedScan {
     hostnamesByDomain.set(domain, set);
   };
 
+  const touchDomain = (domain: string): void => {
+    referenceByDomain.set(domain, (referenceByDomain.get(domain) ?? 0) + 1);
+  };
+
   touchHostname(originDomain, hostnameFromUrl(raw.url) ?? originDomain);
   referenceByDomain.set(originDomain, 0);
 
@@ -43,10 +75,11 @@ export function normalizeScan(raw: RawScanPayload): NormalizedScan {
     const targetDomain = registrableDomain(finding.url);
     const hostname = hostnameFromUrl(finding.url);
     if (!targetDomain || !hostname) continue;
-    if (targetDomain === originDomain) continue;
+
+    const sourceDomain: string = registrableDomain(sourceUrlOf(finding, raw.url)) ?? originDomain;
+    if (targetDomain === originDomain && sourceDomain === originDomain) continue;
 
     const type = finding.type as ConnectionType;
-    const edgeId = `${originDomain}|${targetDomain}|${type}`;
     const evidence: Evidence = {
       type,
       url: finding.url,
@@ -55,26 +88,14 @@ export function normalizeScan(raw: RawScanPayload): NormalizedScan {
     };
     if (finding.context) evidence.context = finding.context;
 
-    const existing = edges.get(edgeId);
-    if (existing) {
-      existing.count += 1;
-      if (existing.evidence.length < MAX_EVIDENCE) {
-        existing.evidence.push(evidence);
-      }
-    } else {
-      edges.set(edgeId, {
-        id: edgeId,
-        source: originDomain,
-        target: targetDomain,
-        type,
-        count: 1,
-        evidence: [evidence],
-      });
-    }
-
     touchHostname(targetDomain, hostname);
-    referenceByDomain.set(targetDomain, (referenceByDomain.get(targetDomain) ?? 0) + 1);
-    referenceByDomain.set(originDomain, (referenceByDomain.get(originDomain) ?? 0) + 1);
+    touchDomain(targetDomain);
+    if (sourceDomain !== targetDomain) {
+      const sourceHost = hostnameFromUrl(sourceUrlOf(finding, raw.url));
+      if (sourceHost) touchHostname(sourceDomain, sourceHost);
+      touchDomain(sourceDomain);
+      addEdge(edges, sourceDomain, targetDomain, type, evidence);
+    }
   }
 
   const nodes: GraphNodeRecord[] = [];

@@ -1,9 +1,7 @@
-import { concludeSite } from "@/src/analysis/unusual";
-import { nutritionFromScan } from "@/src/analysis/nutrition";
 import { canScanUrl } from "@/src/extension/permissions";
 import { registrableDomain } from "@/src/lib/domain";
 import { db } from "@/src/storage/database";
-import { domainRowsForSnapshot, getSiteGlance } from "@/src/storage/glance";
+import { getSiteGlance } from "@/src/storage/glance";
 import type { ScanGraphSnapshot, ScanRow } from "@/src/types/graph";
 
 export type BadgeHint = {
@@ -21,7 +19,6 @@ export function badgeForGlance(input: {
   previous?: ScanRow;
   latestGraph?: ScanGraphSnapshot;
   previousGraph?: ScanGraphSnapshot;
-  unusual?: boolean;
 }): BadgeHint {
   const nowDomains = new Set(thirdPartyDomains(input.latestGraph));
   const beforeDomains = new Set(thirdPartyDomains(input.previousGraph));
@@ -36,9 +33,6 @@ export function badgeForGlance(input: {
 
   if (added > 0) {
     return { text: added > 9 ? "+9+" : `+${String(added)}`, color: "#a16207" };
-  }
-  if (input.unusual) {
-    return { text: "!", color: "#b91c1c" };
   }
   const count = input.latest.thirdPartyCount;
   if (count <= 0) return { text: "0", color: "#171717" };
@@ -91,20 +85,12 @@ export async function applyBadgeForUrl(url: string | undefined): Promise<void> {
     return;
   }
 
-  const rows = await domainRowsForSnapshot(glance.latestGraph);
-  const nutrition = nutritionFromScan(glance.latest, glance.latestGraph);
-  const conclusion = concludeSite({
-    nutrition,
-    snapshot: glance.latestGraph,
-    domainRows: rows,
-  });
   await applyBadge(
     badgeForGlance({
       latest: glance.latest,
       previous: glance.previous,
       latestGraph: glance.latestGraph,
       previousGraph: glance.previousGraph,
-      unusual: conclusion.unusual,
     }),
   );
 }

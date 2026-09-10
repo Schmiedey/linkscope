@@ -2,8 +2,8 @@ import { Link, useParams } from "react-router-dom";
 import { useMemo, useState } from "react";
 import { describeDomain, isTrackerCategory } from "@/src/analysis/categorizer";
 import { identifyDomain, riskLabel, seenOnShare } from "@/src/analysis/identity";
+import { DomainActions } from "@/src/components/DomainActions";
 import { Badge } from "@/src/components/ui/badge";
-import { Button } from "@/src/components/ui/button";
 import { FilterChip, SearchInput } from "@/src/components/SearchControls";
 import { formatCount, formatRelativeTime, formatShortDate } from "@/src/lib/utils";
 import { useAsync } from "@/src/lib/useAsync";
@@ -169,16 +169,14 @@ export function DomainDetailPage() {
         </div>
       ) : null}
       <p className="mt-4 max-w-xl text-[14px] text-ink">{identity.usedFor}</p>
-      <div className="mt-4">
-        <Button
-          variant={followed.data ? "subtle" : "ghost"}
-          size="sm"
-          onClick={() => {
+      <div className="mt-4 max-w-xs">
+        <DomainActions
+          domain={domain}
+          followed={followed.data}
+          onFollow={() => {
             void toggleFollowDomain(domain).then(() => followed.reload());
           }}
-        >
-          {followed.data ? "Following" : "Follow in LinkScope"}
-        </Button>
+        />
       </div>
       <h2 className="font-display mt-10 mb-3 text-2xl">Appeared on</h2>
       <div className="divide-y divide-line border-y border-line">

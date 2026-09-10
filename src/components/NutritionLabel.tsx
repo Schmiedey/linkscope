@@ -1,14 +1,6 @@
 import type { ReactNode } from "react";
-import { scoreTone, type PrivacyGrade } from "@/src/analysis/score";
 import type { SiteNutrition } from "@/src/analysis/nutrition";
 import { cn } from "@/src/lib/utils";
-
-function Grade({ value }: { value: PrivacyGrade }) {
-  const tone = scoreTone(value);
-  const color =
-    tone === "lime" ? "text-lime" : tone === "amber" ? "text-amber" : tone === "rose" ? "text-rose" : "text-ink";
-  return <span className={cn("font-display text-[22px] leading-none", color)}>{value}</span>;
-}
 
 export function NutritionLabel({
   nutrition,
@@ -19,8 +11,6 @@ export function NutritionLabel({
 }) {
   const c = nutrition.counts;
   const rows: Array<{ label: string; value: ReactNode }> = [
-    { label: "Privacy", value: <Grade value={nutrition.privacy} /> },
-    { label: "Complexity", value: <Grade value={nutrition.complexity} /> },
     { label: "Third parties", value: String(c.thirdParties) },
     { label: "Trackers", value: String(c.trackers) },
     { label: "Ads", value: String(c.ads) },

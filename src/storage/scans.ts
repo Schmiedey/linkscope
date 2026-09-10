@@ -1,8 +1,10 @@
 import { scoreSnapshot } from "@/src/analysis/score";
 import { normalizeScan } from "@/src/extension/normalize";
-import { recordScanAlert } from "@/src/storage/alerts";
+import { notifyFollowedSeen, recordScanAlert } from "@/src/storage/alerts";
 import { exportArchive } from "@/src/storage/archive";
 import { db } from "@/src/storage/database";
+import { listFollowedDomains } from "@/src/storage/follows";
+import { pruneSnapshots } from "@/src/storage/retention";
 import type {
   CaptureMode,
   ConnectionType,
@@ -29,6 +31,9 @@ export async function persistScan(raw: RawScanPayload, options: PersistScanOptio
   const existingSite = await db.sites.where("domain").equals(normalized.originDomain).first();
   const previous = existingSite?.id !== undefined ? await getLatestScanForSite(existingSite.id) : undefined;
   const previousGraph = previous?.id !== undefined ? await getScanGraph(previous.id) : undefined;
+
+  const followed = new Set(await listFollowedDomains());
+  const newFollowHits: string[] = [];
 
   const scanId = await db.transaction("rw", db.sites, db.scans, db.scanGraphs, db.domains, db.sightings, async () => {
     let site = await db.sites.where("domain").equals(normalized.originDomain).first();
@@ -138,6 +143,7 @@ export async function persistScan(raw: RawScanPayload, options: PersistScanOptio
           lastSeen: now,
         };
         await db.sightings.add(sighting);
+        if (followed.has(node.domain)) newFollowHits.push(node.domain);
         const domainRow = await db.domains.get(node.domain);
         if (domainRow) {
           await db.domains.put({
@@ -155,7 +161,15 @@ export async function persistScan(raw: RawScanPayload, options: PersistScanOptio
   const nextGraph = await getScanGraph(scanId);
   if (next && nextGraph) {
     await recordScanAlert(previous, next, nextGraph, previousGraph);
+    if (newFollowHits.length > 0) {
+      await notifyFollowedSeen({
+        domain: next.domain,
+        scanId,
+        followed: newFollowHits,
+      });
+    }
   }
+  await pruneSnapshots();
 
   return scanId;
 }

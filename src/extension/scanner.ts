@@ -36,14 +36,13 @@ function recordResourceEntry(entry: PerformanceResourceTiming): void {
     type,
     url,
     snippet: `performance:${entry.initiatorType || "other"} ${url.slice(0, 256)}`,
+    documentUrl: location.href,
   });
 }
 
 /**
  * Expand Chrome's Resource Timing buffer and keep a PerformanceObserver on
- * `globalThis` so later `executeScript` injections reuse it instead of resetting.
- * Must run at document_start when possible — the default buffer (~250) silently
- * drops further entries on heavy pages.
+ * `globalThis` so later `executeScript` injections in this frame reuse it.
  */
 export function ensureResourceWatch(): void {
   try {
@@ -127,7 +126,12 @@ export function collectPageFindings(): RawScanPayload {
     const key = `${type}|${url}`;
     if (seen.has(key)) return;
     seen.add(key);
-    const finding: RawFinding = { type: type as ConnectionType, url, snippet };
+    const finding: RawFinding = {
+      type: type as ConnectionType,
+      url,
+      snippet,
+      documentUrl: location.href,
+    };
     if (context) finding.context = context.slice(0, 160);
     findings.push(finding);
   };

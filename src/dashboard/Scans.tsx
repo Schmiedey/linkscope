@@ -1,14 +1,12 @@
 import { Link } from "react-router-dom";
 import { useMemo, useState } from "react";
-import { scoreFromScan } from "@/src/analysis/score";
-import { PrivacyScoreMark } from "@/src/components/PrivacyScoreMark";
 import { FilterChip, SearchInput } from "@/src/components/SearchControls";
 import { formatCount, formatRelativeTime } from "@/src/lib/utils";
 import { useAsync } from "@/src/lib/useAsync";
 import { listRecentScans } from "@/src/storage/scans";
 
 type CaptureFilter = "all" | "snapshot" | "watch";
-type ScanSort = "newest" | "trackers" | "score";
+type ScanSort = "newest" | "trackers" | "third";
 
 export function ScansPage() {
   const now = Date.now();
@@ -33,7 +31,7 @@ export function ScansPage() {
     }
     list.sort((a, b) => {
       if (sort === "trackers") return b.trackerCount - a.trackerCount || b.timestamp - a.timestamp;
-      if (sort === "score") return scoreFromScan(a).score - scoreFromScan(b).score || b.timestamp - a.timestamp;
+      if (sort === "third") return b.thirdPartyCount - a.thirdPartyCount || b.timestamp - a.timestamp;
       return b.timestamp - a.timestamp;
     });
     return list;
@@ -68,8 +66,8 @@ export function ScansPage() {
         <FilterChip on={sort === "trackers"} onClick={() => setSort("trackers")}>
           Most trackers
         </FilterChip>
-        <FilterChip on={sort === "score"} onClick={() => setSort("score")}>
-          Worst score
+        <FilterChip on={sort === "third"} onClick={() => setSort("third")}>
+          Most third parties
         </FilterChip>
       </div>
       {rows.length ? (
@@ -77,7 +75,6 @@ export function ScansPage() {
           <thead className="text-[12px] text-mute">
             <tr>
               <th className="pb-2 font-normal">Site</th>
-              <th className="pb-2 font-normal">Score</th>
               <th className="pb-2 font-normal">Third parties</th>
               <th className="pb-2 font-normal">Trackers</th>
               <th className="pb-2 font-normal">Capture</th>
@@ -86,7 +83,6 @@ export function ScansPage() {
           </thead>
           <tbody>
             {rows.map((scan) => {
-              const mark = scoreFromScan(scan);
               return (
                 <tr key={scan.id} className="border-t border-line">
                   <td className="py-3">
@@ -94,9 +90,6 @@ export function ScansPage() {
                       {scan.domain}
                     </Link>
                     <div className="max-w-md truncate text-[12px] text-mute">{scan.url}</div>
-                  </td>
-                  <td className="py-3">
-                    <PrivacyScoreMark compact score={mark.score} grade={mark.grade} />
                   </td>
                   <td className="py-3">{formatCount(scan.thirdPartyCount)}</td>
                   <td className="py-3">{formatCount(scan.trackerCount)}</td>

@@ -55,9 +55,10 @@ function resourceName(url?: string): string | undefined {
 }
 
 function bestIncoming(snapshot: ScanGraphSnapshot, domain: string): GraphEdgeRecord | undefined {
-  return [...snapshot.edges]
-    .filter((edge) => edge.target === domain && edge.source !== domain)
-    .sort((a, b) => (TYPE_RANK[a.type] ?? 9) - (TYPE_RANK[b.type] ?? 9))[0];
+  const incoming = snapshot.edges.filter((edge) => edge.target === domain && edge.source !== domain);
+  const viaOther = incoming.filter((edge) => edge.source !== snapshot.originDomain);
+  const pool = viaOther.length > 0 ? viaOther : incoming;
+  return [...pool].sort((a, b) => (TYPE_RANK[a.type] ?? 9) - (TYPE_RANK[b.type] ?? 9))[0];
 }
 
 function hopFor(domain: string, via?: ConnectionType, url?: string): LoadHop {
@@ -96,9 +97,15 @@ export function loadChainFor(snapshot: ScanGraphSnapshot, domain: string): LoadC
   else if (hops[0]?.domain !== origin) hops.unshift(hopFor(origin));
 
   const trigger = lastIncoming?.type;
+  const viaHop = hops.length >= 2 ? hops[hops.length - 2] : undefined;
+  let triggeredBy = trigger ? triggerLabel(trigger) : "this page";
+  if (viaHop && viaHop.domain !== origin && viaHop.domain !== domain) {
+    const via = trigger ? triggerLabel(trigger) : "a request";
+    triggeredBy = `${viaHop.name} (${via})`;
+  }
   return {
     hops,
-    triggeredBy: trigger ? triggerLabel(trigger) : "this page",
+    triggeredBy,
     usedFor: identity.usedFor,
   };
 }
